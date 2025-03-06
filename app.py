@@ -1,11 +1,20 @@
 from flask import Flask, request, jsonify, Response
 import os
 from transform_data import main  # Importa a função de processamento
+from io import StringIO
+import pandas as pd
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def csv_to_json(csv_string):
+    # Lê o CSV a partir de uma string
+    df = pd.read_csv(StringIO(csv_string))
+    # Converte o DataFrame para uma lista de dicionários
+    return df.to_dict(orient="records")
+
 
 @app.route("/process", methods=["POST"])
 def process_file():
@@ -27,10 +36,14 @@ def process_file():
     result = main(file_path, new_path)
     print("Arquivo processado!")  # 🚀 Confirma que processou o CSV
 
-    # Retorna o CSV como resposta para download
-    response = Response(result, mimetype="text/csv")
-    response.headers["Content-Disposition"] = "attachment; filename=transformed_data.csv"
-    return response
+    # # Retorna o CSV como resposta para download
+    # response = Response(result, mimetype="text/csv")
+    # response.headers["Content-Disposition"] = "attachment; filename=transformed_data.csv"
+    # return response
+
+    # Converte o CSV para JSON
+    json_data = csv_to_json(result)
+    return jsonify({"result": json_data})
 
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 10000))  # Pega a porta definida pelo Render
