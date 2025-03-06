@@ -27,8 +27,10 @@ def process_file():
     result = main(file_path, new_path)
     print("Arquivo processado!")  # 🚀 Confirma que processou o CSV
 
-    # Retornar JSON diretamente usando jsonify
-    return result
+    # Retorna o CSV como resposta para download
+    response = Response(result, mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=transformed_data.csv"
+    return response
 
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 10000))  # Pega a porta definida pelo Render

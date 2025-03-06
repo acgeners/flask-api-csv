@@ -578,7 +578,6 @@ def main(new_data_path, filename):
     try:
         ref_path = "ref_data.csv"  # Altere para o caminho correto no Bubble
         new_path = filename
-        output_path = "transformed_data.csv"
 
         print("Carregando arquivos CSV...")
         ref_data = pd.read_csv(ref_path)
@@ -593,8 +592,8 @@ def main(new_data_path, filename):
         validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_columns_list)
         transformed_data = transform_data(df_ref, validated_data, matched_columns)
 
-        final_data = transformed_data.to_csv(output_path, index=False)
-        print(f"✅ Dados transformados salvos como: {output_path}")
+        final_data = transformed_data.to_csv(index=False)
+        print(f"✅ Dados transformados convertidos para CSV")
         return final_data
 
     except Exception as e:
