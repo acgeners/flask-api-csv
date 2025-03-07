@@ -592,9 +592,10 @@ def main(new_data_path, filename):
         validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_columns_list)
         transformed_data = transform_data(df_ref, validated_data, matched_columns)
 
-        final_data = transformed_data.to_csv(index=False)
-        print(f"✅ Dados transformados convertidos para CSV")
-        return final_data
+        # Converte o DataFrame para JSON (uma lista de registros)
+        json_data = transformed_data.to_json(orient='records')
+        print("✅ Dados transformados preparados para API")
+        return json_data
 
     except Exception as e:
         return {"error": str(e)}
