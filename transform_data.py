@@ -596,8 +596,5 @@ def main(new_data_path, filename):
         print(f"✅ Dados transformados convertidos para CSV")
         return final_data
 
-
     except Exception as e:
-        # Cria um DataFrame com a mensagem de erro e converte para CSV
-        error_df = pd.DataFrame({"error": [str(e)]})
-        return error_df.to_csv(index=False)
+        return {"error": str(e)}

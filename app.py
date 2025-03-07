@@ -7,13 +7,20 @@ import pandas as pd
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER)
+
+# Certifique-se de que a pasta de uploads existe
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 def csv_to_json(csv_string):
-    # Lê o CSV a partir de uma string
-    df = pd.read_csv(StringIO(csv_string))
-    # Converte o DataFrame para uma lista de dicionários
-    return df.to_dict(orient="records")
+    try:
+        # Lê o CSV a partir de uma string
+        df = pd.read_csv(StringIO(csv_string))
+        # Converte o DataFrame para uma lista de dicionários
+        return df.to_dict(orient="records")
+    except Exception as e:
+        return {"error": f"Erro ao converter CSV para JSON: {str(e)}"}
 
 
 @app.route("/process", methods=["POST"])
@@ -36,13 +43,14 @@ def process_file():
     result = main(file_path, new_path)
     print("Arquivo processado!")  # 🚀 Confirma que processou o CSV
 
-    # # Retorna o CSV como resposta para download
-    # response = Response(result, mimetype="text/csv")
-    # response.headers["Content-Disposition"] = "attachment; filename=transformed_data.csv"
-    # return response
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 500
 
-    # Converte o CSV para JSON
+        # Converte o CSV para JSON
     json_data = csv_to_json(result)
+    if isinstance(json_data, dict) and "error" in json_data:
+        return jsonify(json_data), 500
+
     return jsonify({"result": json_data})
 
 if __name__ == "__main__":
