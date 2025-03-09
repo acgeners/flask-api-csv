@@ -1,0 +1,39 @@
+__pycache__/
+uploads/
+.env
+
+MODELO Despadronizado _ ENTIDADE - EMPRESA.xlsx
+MODELO Despadronizado _ ENTIDADE - NEGÓCIO - TABELA.csv
+MODELO Despadronizado _ ENTIDADE - NEGÓCIO.xlsx
+MODELO _ ENTIDADE - NEGÓCIO - TABELA.csv
+MODELO _ ENTIDADE - NEGÓCIO.xlsx
+MODELO_ENTIDADE_EMPRESA (2).xlsx
+MODELO_ENTIDADE_PESSOA (3).xlsx
+Modelo Despadronizado _ ENTIDADE - PESSOA.xlsx
+README.md
+backup.py
+backup2.py
+column_type.py
+date.csv
+ex.py
+files.txt
+format_date.py
+list_files.py
+lista_arquivos.txt
+main.py
+main_all.py
+merged_data.csv
+new_data.csv
+new_data1.csv
+new_data_empresa.csv
+ref_data.csv
+ref_data_empresa.csv
+ref_data_short.csv
+refined_data.csv
+short_ref_data.csv
+support.py
+test.csv
+test.py
+teste.csv
+transformed_data.json
+transformed_data_empresa.json
