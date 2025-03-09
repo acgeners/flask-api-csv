@@ -574,13 +574,13 @@ def transform_data(ref_data, new_data, matched_columns):
     return transformed_data
 
 #---------------------------EXECUTAR PROCESSO COMPLETO---------------------------#
-def main(new_data_path, filename):
+def main(ref_data_path, new_data_path, ref_filename, new_filename):
     try:
-        ref_path = "ref_data.csv"  # Altere para o caminho correto no Bubble
-        new_path = filename
+        ref_path = ref_filename
+        new_path = new_filename
 
         print("Carregando arquivos CSV...")
-        ref_data = pd.read_csv(ref_path)
+        ref_data = pd.read_csv(ref_data_path)
         new_data = pd.read_csv(new_data_path)
 
         print("📊 Analisando tipos de dados...")

@@ -47,7 +47,7 @@ meses = [
     "February", "Feb",
     "March", "Mar",
     "April", "Apr",
-    "May", "May",  # o nome completo e a abreviação são iguais
+    "May", "May",
     "June", "Jun",
     "July", "Jul",
     "August", "Aug",
@@ -57,5 +57,11 @@ meses = [
     "December", "Dec"
 ]
 
+# Criar a expressão regular com base na lista de meses
+months = r"\b(" + "|".join(meses) + r")\b"
+
 ref_columns_list = ["Categoria de Stakeholder", "Nível de Relacionamento", "Canal Preferido",
                           "Função de Compra", "Função de Impacto", "Gênero", "Função de Formalização", "Função de Faturamento"]
+
+ref_file = ["ref", "modelo", "referência", "padrão"]
+new_file = ["despadronizado", "new", "novo"]
