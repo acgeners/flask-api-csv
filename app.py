@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify, Response
 import os
-from code_sup import new_file, ref_file
+# from code_sup import new_file, ref_file
 from transform_data import main  # Importa a função de processamento
 import unicodedata
+import re
 
 app = Flask(__name__)
 
@@ -19,6 +20,9 @@ def normalize_str(s):
     nfkd_form = unicodedata.normalize('NFKD', s)
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
+# Define os nomes esperados (normalizados) para cada arquivo
+expected_ref = "modelo_entidade_pessoa"
+
 @app.route("/process", methods=["POST"])
 def process_file():
     print("Requisição recebida!")  # 🚀 Confirma que a requisição chegou
@@ -32,26 +36,41 @@ def process_file():
     ref_name = None
     new_name = None
 
-    # Itera sobre os arquivos enviados e os salva
     for file_key in request.files:
         uploaded_file = request.files[file_key]
-        # Normaliza o nome do arquivo
-        filename_norm = normalize_str(uploaded_file.filename)
+        normalized_filename = normalize_str(uploaded_file.filename)
         file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
         uploaded_file.save(file_path)
         print(f"Arquivo {uploaded_file.filename} salvo em {file_path}")
 
-        # Verifica qual lista de palavras-chave corresponde ao nome do arquivo
-        if any(keyword in filename_norm for keyword in ref_file):
+        # Verifica se o nome contém "arquivo_modelo_" seguido de ao menos um caractere
+        if re.search(r"arquivo_modelo_.+", normalized_filename):
             file_ref = file_path
-            ref_name = uploaded_file.filename
             print(f"Atribuído {uploaded_file.filename} à variável file_ref")
-        elif any(keyword in filename_norm for keyword in new_file):
-            file_new = file_path
-            new_name = uploaded_file.filename
-            print(f"Atribuído {uploaded_file.filename} à variável file_new")
         else:
-            print(f"O arquivo {uploaded_file.filename} não corresponde a nenhuma categoria esperada.")
+            file_new = file_path
+            print(f"Atribuído {uploaded_file.filename} à variável file_new")
+
+    # # Itera sobre os arquivos enviados e os salva
+    # for file_key in request.files:
+    #     uploaded_file = request.files[file_key]
+    #     # Normaliza o nome do arquivo
+    #     filename_norm = normalize_str(uploaded_file.filename)
+    #     file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
+    #     uploaded_file.save(file_path)
+    #     print(f"Arquivo {uploaded_file.filename} salvo em {file_path}")
+
+        # # Verifica qual lista de palavras-chave corresponde ao nome do arquivo
+        # if any(keyword in filename_norm for keyword in ref_file):
+        #     file_ref = file_path
+        #     ref_name = uploaded_file.filename
+        #     print(f"Atribuído {uploaded_file.filename} à variável file_ref")
+        # elif any(keyword in filename_norm for keyword in new_file):
+        #     file_new = file_path
+        #     new_name = uploaded_file.filename
+        #     print(f"Atribuído {uploaded_file.filename} à variável file_new")
+        # else:
+        #     print(f"O arquivo {uploaded_file.filename} não corresponde a nenhuma categoria esperada.")
 
     # Verifica se ambos os arquivos foram enviados e identificados corretamente
     if not file_ref or not file_new:
