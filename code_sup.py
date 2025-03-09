@@ -63,5 +63,5 @@ months = r"\b(" + "|".join(meses) + r")\b"
 ref_columns_list = ["Categoria de Stakeholder", "Nível de Relacionamento", "Canal Preferido",
                           "Função de Compra", "Função de Impacto", "Gênero", "Função de Formalização", "Função de Faturamento"]
 
-ref_file = ["ref", "modelo", "referência", "padrão"]
+ref_file = ["ref", "modelo", "referencia", "padrao"]
 new_file = ["despadronizado", "new", "novo"]

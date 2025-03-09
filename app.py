@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, Response
 import os
 from code_sup import new_file, ref_file
 from transform_data import main  # Importa a função de processamento
+import unicodedata
 
 app = Flask(__name__)
 
@@ -11,6 +12,12 @@ os.makedirs(UPLOAD_FOLDER)
 # Certifique-se de que a pasta de uploads existe
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# Função para normalizar strings: converte para minúsculas e remove acentuação
+def normalize_str(s):
+    s = s.lower()
+    nfkd_form = unicodedata.normalize('NFKD', s)
+    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
 @app.route("/process", methods=["POST"])
 def process_file():
@@ -22,21 +29,24 @@ def process_file():
 
     file_ref = None
     file_new = None
+    ref_name = None
+    new_name = None
 
     # Itera sobre os arquivos enviados e os salva
     for file_key in request.files:
         uploaded_file = request.files[file_key]
-        filename_lower = uploaded_file.filename.lower()
+        # Normaliza o nome do arquivo
+        filename_norm = normalize_str(uploaded_file.filename)
         file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
         uploaded_file.save(file_path)
         print(f"Arquivo {uploaded_file.filename} salvo em {file_path}")
 
         # Verifica qual lista de palavras-chave corresponde ao nome do arquivo
-        if any(keyword in filename_lower for keyword in ref_file):
+        if any(keyword in filename_norm for keyword in ref_file):
             file_ref = file_path
             ref_name = uploaded_file.filename
             print(f"Atribuído {uploaded_file.filename} à variável file_ref")
-        elif any(keyword in filename_lower for keyword in new_file):
+        elif any(keyword in filename_norm for keyword in new_file):
             file_new = file_path
             new_name = uploaded_file.filename
             print(f"Atribuído {uploaded_file.filename} à variável file_new")
