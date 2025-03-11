@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, Response
 import os
 from code_sup import new_file, ref_file
-from transform_data_backup import main  # Importa a função de processamento
+from transform_data import main  # Importa a função de processamento
 import unicodedata
 import re
 
