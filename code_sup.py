@@ -60,8 +60,12 @@ meses = [
 # Criar a expressão regular com base na lista de meses
 months = r"\b(" + "|".join(meses) + r")\b"
 
+meses_pt = meses[:24]  # Pegando apenas os meses em português
+meses_en = meses[24:]  # Pegando apenas os meses em inglês
+month_translation = {pt: en for pt, en in zip(meses_pt, meses_en)}
+
 ref_columns_list = ["Categoria de Stakeholder", "Nível de Relacionamento", "Canal Preferido",
                           "Função de Compra", "Função de Impacto", "Gênero", "Função de Formalização", "Função de Faturamento"]
 
-ref_file = ["ref", "modelo", "referencia", "padrao"]
+ref_file = ["ref", "modelo", "referencia", "padrao", "arquivo_modelo"]
 new_file = ["despadronizado", "new", "novo"]

@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, Response
 import os
-# from code_sup import new_file, ref_file
-from transform_data import main  # Importa a função de processamento
+from code_sup import new_file, ref_file
+from transform_data_backup import main  # Importa a função de processamento
 import unicodedata
 import re
 
@@ -11,17 +11,85 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER)
 
 # Certifique-se de que a pasta de uploads existe
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Função para normalizar strings: converte para minúsculas e remove acentuação
 def normalize_str(s):
     s = s.lower()
     nfkd_form = unicodedata.normalize('NFKD', s)
-    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+    return ''.join(c for c in nfkd_form if not unicodedata.combining(c))
 
-# Define os nomes esperados (normalizados) para cada arquivo
-expected_ref = "modelo_entidade_pessoa"
+def name_eval(name):
+    """
+    Pontua o nome do arquivo somando 1 para cada ocorrência de uma palavra positiva
+    (considerando limites de palavra) e subtraindo 1 para cada palavra negativa.
+    """
+    clean_name = normalize_str(name)
+    score = 0
+    # Pontua cada ocorrência de palavras positivas
+    for word in ref_file:
+        if re.search(r'\b' + re.escape(word) + r'\b', clean_name):
+            score += 1
+    # Subtrai pontos para palavras negativas
+    for word in new_file:
+        if re.search(r'\b' + re.escape(word) + r'\b', clean_name):
+            score -= 1
+    return score
+
+def define_file_roles(files_data):
+    """
+    Recebe uma lista com os dados dos arquivos (nome original e caminho completo)
+    e, utilizando a função name_eval e regras de desempate, define qual arquivo é de referência
+    e qual é o novo.
+    Retorna uma tupla com (file_ref_name, ref_name, file_new_name, new_name).
+    """
+    candidate1 = files_data[0]
+    candidate2 = files_data[1]
+
+    # Utiliza o nome original para a avaliação
+    score1 = name_eval(candidate1["filename"])
+    score2 = name_eval(candidate2["filename"])
+
+    # Em caso de empate, verifica as palavras positivas e negativas para desempate
+    if score1 == score2:
+        # Verifica a presença de palavras positivas
+        tem_pos_candidate1 = any(re.search(r'\b' + re.escape(word) + r'\b', normalize_str(candidate1["filename"])) for word in ref_file)
+        tem_pos_candidate2 = any(re.search(r'\b' + re.escape(word) + r'\b', normalize_str(candidate2["filename"])) for word in ref_file)
+        if tem_pos_candidate1 and not tem_pos_candidate2:
+            score1 += 1
+        elif tem_pos_candidate2 and not tem_pos_candidate1:
+            score2 += 1
+        else:
+            # Se ainda houver empate, verifica a presença de palavras negativas
+            # O arquivo que NÃO apresentar palavras negativas é preferido como referência
+            tem_neg_candidate1 = any(re.search(r'\b' + re.escape(word) + r'\b', normalize_str(candidate1["filename"])) for word in new_file)
+            tem_neg_candidate2 = any(re.search(r'\b' + re.escape(word) + r'\b', normalize_str(candidate2["filename"])) for word in new_file)
+            if tem_neg_candidate1 and not tem_neg_candidate2:
+                score2 += 1  # candidate1 contém palavra negativa, favorece candidate2
+            elif tem_neg_candidate2 and not tem_neg_candidate1:
+                score1 += 1  # candidate2 contém palavra negativa, favorece candidate1
+
+    # Define qual é o arquivo de referência com base na pontuação
+    if score1 > score2:
+        file_ref_name = candidate1["filepath"]
+        ref_name = candidate1["filename"]
+        file_new_name = candidate2["filepath"]
+        new_name = candidate2["filename"]
+    elif score2 > score1:
+        file_ref_name = candidate2["filepath"]
+        ref_name = candidate2["filename"]
+        file_new_name = candidate1["filepath"]
+        new_name = candidate1["filename"]
+    else:
+        print("Ambos os arquivos têm pontuação igual. Verifique os nomes manualmente.")
+        file_ref_name = candidate1["filepath"]
+        ref_name = candidate1["filename"]
+        file_new_name = candidate2["filepath"]
+        new_name = candidate2["filename"]
+
+    return file_ref_name, ref_name, file_new_name, new_name
+
+
 
 @app.route("/process", methods=["POST"])
 def process_file():
@@ -31,71 +99,31 @@ def process_file():
         print("Nenhum arquivo recebido.")  # 🛑 Debug se não houver arquivo
         return jsonify({"error": "No file was provided."}), 400
 
-    file_ref = None
-    file_new = None
-    ref_name = None
-    new_name = None
-
+    # Armazena os arquivos enviados como dicionários contendo o nome original e o caminho completo
+    files_data = []
     for file_key in request.files:
         uploaded_file = request.files[file_key]
-        normalized_filename = normalize_str(uploaded_file.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
+        original_filename = uploaded_file.filename
+        file_path = os.path.join(UPLOAD_FOLDER, original_filename)
         uploaded_file.save(file_path)
-        print(f"Arquivo {uploaded_file.filename} salvo em {file_path}")
+        print(f"Arquivo {original_filename} salvo em {file_path}")
+        files_data.append({"filename": original_filename, "filepath": file_path})
 
-        # Verifica se o nome contém "arquivo_modelo_" seguido de ao menos um caractere
-        if re.search(r"arquivo_modelo_.+", normalized_filename):
-            file_ref = file_path
-            print(f"Atribuído {uploaded_file.filename} à variável file_ref")
-        else:
-            file_new = file_path
-            print(f"Atribuído {uploaded_file.filename} à variável file_new")
+    if len(files_data) != 2:
+        return jsonify({"error": "É necessário enviar exatamente 2 arquivos."}), 400
 
-    # # Itera sobre os arquivos enviados e os salva
-    # for file_key in request.files:
-    #     uploaded_file = request.files[file_key]
-    #     # Normaliza o nome do arquivo
-    #     filename_norm = normalize_str(uploaded_file.filename)
-    #     file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
-    #     uploaded_file.save(file_path)
-    #     print(f"Arquivo {uploaded_file.filename} salvo em {file_path}")
+    # Define os papéis dos arquivos (arquivo de referência e arquivo novo)
+    file_ref_name, ref_name, file_new_name, new_name = define_file_roles(files_data)
 
-        # # Verifica qual lista de palavras-chave corresponde ao nome do arquivo
-        # if any(keyword in filename_norm for keyword in ref_file):
-        #     file_ref = file_path
-        #     ref_name = uploaded_file.filename
-        #     print(f"Atribuído {uploaded_file.filename} à variável file_ref")
-        # elif any(keyword in filename_norm for keyword in new_file):
-        #     file_new = file_path
-        #     new_name = uploaded_file.filename
-        #     print(f"Atribuído {uploaded_file.filename} à variável file_new")
-        # else:
-        #     print(f"O arquivo {uploaded_file.filename} não corresponde a nenhuma categoria esperada.")
+    print("Arquivo de referência:", file_ref_name)
+    print("Arquivo novo:", file_new_name)
 
-    # Verifica se ambos os arquivos foram enviados e identificados corretamente
-    if not file_ref or not file_new:
-        return jsonify({"error": "Um ou ambos os arquivos não foram enviados ou seus nomes não correspondem aos "
-                                 "padrões esperados."}), 400
-
-    result = main(file_ref, file_new, ref_name, new_name)
+    # Chama a função principal de processamento passando os arquivos e os nomes
+    result = main(file_ref_name, file_new_name, ref_name, new_name)
     print("Arquivos processados!")
 
     return Response(result, mimetype='application/json')
 
-    # Pegando o primeiro arquivo recebido, independentemente da chave
-    # uploaded_file = next(iter(request.files.values()))
-
-    # file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
-    # new_path = uploaded_file.filename
-    #
-    # uploaded_file.save(file_path)
-    # print(f"Arquivo salvo em {file_path}")  # ✅ Confirmação de salvamento
-    #
-    # result = main(file_path, new_path)
-    # print("Arquivo processado!")  # 🚀 Confirma que processou o CSV
-
-    # # Define o cabeçalho Content-Type como application/json
-    # return Response(result, mimetype='application/json')
 
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 10000))  # Pega a porta definida pelo Render
