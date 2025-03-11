@@ -207,42 +207,75 @@ def detect_address(df, detected_types, threshold=0.8):
     return detected_types
 
 def detect_finance(df, detected_types, threshold=0.8):
-    print("\n🔍 Detectando colunas de valores monetários...")
+    print("\n🔍 Detectando colunas de valores monetários e ranges de valores...")
+
     def is_financial(text):
         if not isinstance(text, str) or len(text) < 2:
-            return False  # Ignore invalid or too short strings
+            return False, False  # Retorna duas flags: (é valor simples, é range)
 
-        # Common currency symbols and financial words
-        currency_symbols = r'(R\$|\$|BRL|USD|€|£|¥|CAD|AUD)'  # Common currencies
-        word_numbers = r'(\bmilhão\b|\bbilhão\b|\bmilhões\b|\bbilhões\b|\bmil\b)'  # Words like "milhão", "bilhão", "mil"
+        # Se o valor for um número puro e tiver muitos dígitos, assume que é um ID
+        if text.isdigit() and len(text) >= 9:
+            return False, False  # Provavelmente um ID, não dinheiro
 
-        # Number pattern: Allows formats like 1.000.000,00 or 1,000,000.00
-        number_pattern = r'(\d{1,3}(\.\d{3})*(,\d{2})?|\d{1,3}(,\d{3})*(\.\d{2})?)'
+        # Se o valor for uma probabilidade (entre 0 e 1), não é dinheiro
+        try:
+            num_value = float(text.replace(",", "."))  # Converter para float
+            if 0 <= num_value <= 1:
+                return False, False  # Provavelmente uma probabilidade
+        except ValueError:
+            pass  # Se der erro, continua a verificação normal
 
-        # Simple numerical value (integer or decimal)
-        simple_number = r'^\d+([.,]\d+)?$'  # Matches "10", "10.5", "1000,99"
+        # Símbolos de moeda e palavras numéricas
+        currency_symbols = r'(R\$|\$|BRL|USD|€|£|¥|CAD|AUD)'  # Moedas comuns
+        word_numbers = r'(\bmilhão\b|\bbilhão\b|\bmilhões\b|\bbilhões\b|\bmil\b)'  # "milhão", "bilhão", etc.
 
-        # Check conditions (convert to boolean to avoid returning `re.Match`)
+        # Padrão para números formatados (ex: 1.000.000,00 ou 1,000,000.00)
+        number_pattern = r'(\d{1,3}(\.\d{3})*,\d{2}|\d{1,3}(,\d{3})*\.\d{2})'
+
+        # Indicadores de intervalo: "-" ou palavras como "até"
+        range_indicators = r'(-|\+|\baté\b|\be\b)'  # "Até 360.000", "360.000 - 4.800.000", etc.
+
+        # Verificações
         has_currency = bool(re.search(currency_symbols, text, re.IGNORECASE))
         has_word_number = bool(re.search(word_numbers, text, re.IGNORECASE))
         has_formatted_number = bool(re.search(number_pattern, text))
-        has_simple_number = bool(re.match(simple_number, text))  # Must match entire string
+        has_range_indicator = bool(re.search(range_indicators, text, re.IGNORECASE))
 
-        # Ensure at least one currency symbol or word + a valid number
-        return (has_currency or has_word_number) and (has_formatted_number or has_simple_number)
+        # Se tem moeda ou palavra numérica + número, é valor financeiro
+        is_value = (has_currency or has_word_number) and has_formatted_number
 
-    # Process only columns NOT already in detected_types
+        # Se também tem um indicador de intervalo, é um range de valores
+        is_range = is_value and has_range_indicator
+
+        return is_value, is_range
+
     for col in df.columns:
         if col in detected_types:
-            continue  # Skip already processed columns
+            continue  # Pula colunas já processadas
 
-        valid_count = df[col].dropna().astype(str).apply(is_financial).sum()  # Count financial-like values
-        total_count = df[col].notna().sum()  # Count total non-null values
-
-        if total_count > 0 and (valid_count / total_count) >= threshold:  # Check if >= 80% of values are financial
-            print(f"• Coluna '{col}' identificada como Valor Monetário.")
-
+        # Se a coluna se chama exatamente "Valor", define como "Valor"
+        if col.lower() == "valor":
             detected_types[col] = "Valor"
+            print(f"✔ Coluna '{col}' automaticamente classificada como 'Valor'.")
+            continue  # Pula para a próxima coluna, pois já foi processada
+
+        valid_values = df[col].dropna().astype(str).apply(is_financial)
+        total_count = df[col].notna().sum()
+
+        value_count = sum(1 for v, r in valid_values if v and not r)  # Apenas valores simples
+        range_count = sum(1 for v, r in valid_values if r)  # Apenas ranges de valores
+
+        if total_count > 0:
+            value_ratio = value_count / total_count
+            range_ratio = range_count / total_count
+
+            if range_ratio >= threshold:
+                print(f"• Coluna '{col}' identificada como Range de Valores.")
+                detected_types[col] = "Range de valores"
+            elif value_ratio >= threshold:
+                print(f"• Coluna '{col}' identificada como Valor Monetário.")
+                detected_types[col] = "Valor"
+
     return detected_types
 
 
@@ -327,6 +360,30 @@ def format_cnae(value):
         print("Não foi possível formatar o CNAE - falha ao identificar dado")
         return None
 
+def format_value(value):
+    if isinstance(value, (int, float)):
+        return str(int(value))  # Se for número puro, retorna apenas o inteiro como string
+
+    if not isinstance(value, str):
+        return value  # Se não for string ou número, retorna sem alterações
+
+    # Remover símbolos de moeda, letras e espaços
+    value = re.sub(r'[^\d.,]', '', value)  # Mantém apenas números, pontos e vírgulas
+
+    # Se for um número inteiro puro (ex: "450000"), retorna apenas o número
+    if value.isdigit():
+        return value
+
+    # Se o formato for americano (ex: "260,000.00"), converter para o formato correto
+    if re.search(r'\d{1,3},\d{3}\.\d{2}', value):
+        value = value.replace(',', '').split('.')[0]  # Remove ',' e corta os centavos
+
+    # Se for um número no formato brasileiro (ex: "1.000.000,00"), remover pontuação e centavos
+    if re.match(r'^\d{1,3}(\.\d{3})*,\d{2}$', value):
+        value = value.rsplit(',', 1)[0]  # Remove a parte decimal (centavos)
+        value = value.replace('.', '')  # Remove pontos dos milhares
+
+    return value  # Retorna o número formatado
 
 def is_valid_cpf(value):
     """Verifica se um valor é um CPF válido seguindo o algoritmo da Receita Federal."""
@@ -416,10 +473,6 @@ def detect_identifiers(df, detected_types):
             # Contagem de correspondências para expressões regulares
             regex_matches = {key: values.str.match(patterns[key]).sum() for key in patterns}
 
-            # Contagem de validações personalizadas
-            # print("\n📊 Exemplo de valores na coluna CNPJ antes da validação:")
-            # print(df["CNPJ"].head(10).tolist())  # Mostra os primeiros 10 CPFs na lista
-
             cpf_results = values.apply(is_valid_cpf)
             phone_results = values.apply(is_phone_number)
             cnpj_results = values.apply(is_valid_cnpj)
@@ -430,9 +483,6 @@ def detect_identifiers(df, detected_types):
             cnpj_matches = cnpj_results.eq("CNPJ").sum()
             cnae_matches = cnae_results.eq("CNAE").sum()
 
-            # Debug para verificar os valores retornados
-            # print(f"Resultados CNPJ para a coluna '{col}':\n{cnpj_results.value_counts()}")
-            # print(f"Coluna {col}: CNPJ count: {cnpj_matches}, total: {total_values}")
 
             # Combinar todas as contagens
             matches = {**regex_matches, "CPF": cpf_matches, "Telefone": phone_matches,
@@ -446,9 +496,6 @@ def detect_identifiers(df, detected_types):
                     print(f"•  Coluna '{col}' identificada como {tipo}.")
                     break  # Se uma categoria for detectada, não precisa verificar as outras
 
-    # # Exibir o resultado final
-    # for col, col_type in detected_types.items():
-    #     print(f"•  Coluna '{col}' identificada como {col_type}.")
 
     return detected_types
 
@@ -482,6 +529,11 @@ def format_df(df, detected_types):
         if detected_types.get(col, "") == "Texto"
     ]
 
+    format_values = [
+        col for col in df_formated.select_dtypes(include=["object"]).columns
+        if detected_types.get(col, "") == "Valor"
+    ]
+
     # Aplicar a formatação apenas nessas colunas
     for col in format_columns:
         # Primeiro, aplica uma limpeza nos textos
@@ -498,6 +550,10 @@ def format_df(df, detected_types):
 
     for col in format_txt_columns:
             df_formated[col] = df_formated[col].map(clean_gender)
+
+    for col in format_values:
+        df_formated[col] = df_formated[col].map(format_value)
+        print(f"Coluna {col}: \n{df_formated[col]}")
 
     print(f"✅ Colunas formatadas: {format_columns}")
 
@@ -565,10 +621,6 @@ def analyze_table(df, filename):
     """Executa todas as etapas na sequência correta."""
     print(f"\nAnalisando dados em: {filename}\n")
 
-    # Configura pandas para exibir todas as colunas na saída
-    # pd.set_option('display.max_columns', None)  # Exibe todas as colunas
-    # pd.set_option('display.width', 200)  # Ajusta a largura do terminal para evitar truncamento
-    # Configura o pandas para exibir todas as linhas e colunas
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', None)
@@ -587,7 +639,7 @@ def analyze_table(df, filename):
 
     df = transform_percent(df)
     df = format_df(df, detected_types)
-    # print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
+    print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
 
     # Detecta tipos de colunas e obtém valores únicos para colunas de texto
     detected_types, unique_values_dict = detect_column_type(df, detected_types)
@@ -597,7 +649,7 @@ def analyze_table(df, filename):
 
     result_df = pd.DataFrame(list(detected_types.items()), columns=['Coluna', 'Tipo'])
     print(f"\n{result_df}\n")
-    # print(df)
+    print(df)
 
     return df, result_df, unique_values_dict
 
