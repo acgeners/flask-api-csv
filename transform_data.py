@@ -940,6 +940,8 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
             transformed_data = transform_data(df_ref, validated_data, matched_columns)
             # TODO ver se precisa disso
             transformed_data = transformed_data.astype(str)
+            # Substituir todas as ocorrências da string "NaN" por valores vazios (sem inplace=True)
+            transformed_data.replace("nan", "", inplace=True)
 
             # Converte o DataFrame para JSON (uma lista de registros)
             json_data = transformed_data.to_json(orient='records')
