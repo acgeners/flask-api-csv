@@ -1,10 +1,8 @@
-import numpy as np
 from code_sup import VALID_DDD, months, month_translation
 import pandas as pd
 import re
 from difflib import SequenceMatcher
 from dateutil import parser
-from fuzzywuzzy import process
 
 #---------------------------IDENTIFICAR PLANILHA---------------------------#
 def classificar_df(df) -> str:
@@ -130,7 +128,7 @@ def convert_to_standard_date(value, dayfirst=True):
 
 
 def detect_and_format_dates(df, detected_types):
-    print("🔍 Detectando e formatando colunas de data...")
+    print("\n🔍 Detectando e formatando colunas de data...")
     for col in df.columns:
 
         non_empty = df[col].dropna()
@@ -234,9 +232,6 @@ def detect_finance(df, detected_types, threshold=0.8):
         # Padrão para números formatados (ex: 1.000.000,00 ou 1,000,000.00)
         number_pattern = r'(\d{1,3}(\.\d{3})*,\d{2}|\d{1,3}(,\d{3})*\.\d{2})'
 
-        # Padrão para números escritos por extenso (ex: "10 milhões", "100 bilhões")
-        word_number_pattern = r'(\d+)\s*(milhão|milhões|bilhão|bilhões|mil)'
-
         # Indicadores de intervalo: "-" ou palavras como "até"
         range_indicators = r'(-|\+|\baté\b|\be\b)'  # "Até 360.000", "360.000 - 4.800.000", etc.
 
@@ -245,11 +240,9 @@ def detect_finance(df, detected_types, threshold=0.8):
         has_word_number = bool(re.search(word_numbers, text, re.IGNORECASE))
         has_formatted_number = bool(re.search(number_pattern, text))
         has_range_indicator = bool(re.search(range_indicators, text, re.IGNORECASE))
-        has_number_by_words = bool(re.search(word_number_pattern, text))
 
         # Se tem moeda ou palavra numérica + número, é valor financeiro
-        is_value = (has_currency or has_word_number or has_number_by_words) and (
-                    has_formatted_number or has_number_by_words)
+        is_value = (has_currency or has_word_number) and has_formatted_number
 
         # Se também tem um indicador de intervalo, é um range de valores
         is_range = is_value and has_range_indicator
@@ -285,63 +278,6 @@ def detect_finance(df, detected_types, threshold=0.8):
 
     return detected_types
 
-def detect_num_range(df, detected_types, threshold=0.8):
-    print("\n🔍 Detectando colunas de range de números...")
-
-    def is_num_range(text):
-        """
-        Avalia se um dado representa um número simples ou um range.
-        Retorna True se for um número e True se for um range.
-        """
-        if not isinstance(text, str) or len(text) < 2:
-            return False, False  # Retorna duas flags: (é número, é range)
-
-        # Padrões de intervalos numéricos válidos:
-        pattern_range = r'^\d+\s*(-|\baté\b)\s*\d+$'  # "10-20", "100 até 200", "50 - 100"
-        pattern_open_range = r'^\b(até)\s+\d+$'  # "até 300"
-        pattern_plus = r'^\d+\s*\+$'  # "5+"
-        float_pattern = r'^-?\d+([.,])\d+$'  # Float simples, ex: "12.3" ou "8,9"
-
-        try:
-            has_int_number = int(text)  # Se for um número inteiro válido, não gera erro
-            # has_int_number = True
-        except ValueError:
-            has_int_number = False  # Se der erro ao converter para int, não é número inteiro
-
-        has_float_number = bool(re.search(float_pattern, text))
-        has_pattern_range = bool(re.search(pattern_range, text, re.IGNORECASE))
-        has_pattern_open_range = bool(re.search(pattern_open_range, text, re.IGNORECASE))
-        has_pattern_plus = bool(re.search(pattern_plus, text, re.IGNORECASE))
-
-        # Se tem separador de números, sinal de "+" ou "até" - é um range
-        is_range = has_pattern_range or has_pattern_open_range or has_pattern_plus
-
-        # Se tem números inteiros ou float
-        is_number = has_int_number or has_float_number
-
-        return is_number, is_range
-
-    for col in df.columns:
-        if col in detected_types:
-            continue  # Pula colunas já processadas
-        print(f"Coluna sendo avaliada: {col}")
-        valid_values = df[col].dropna().astype(str).apply(is_num_range)
-        total_count = df[col].notna().sum()
-
-        number_count = sum(1 for v, r in valid_values if v)  # Apenas números
-        range_count = sum(1 for v, r in valid_values if r)  # Apenas ranges de números
-
-        if total_count > 0:
-            range_ratio = range_count / total_count
-            number_ratio = number_count / total_count
-            # print(f"Range ratio: {range_ratio}")
-            # print(f"Number ratio: {number_ratio}")
-
-            if range_ratio >= threshold or ((range_ratio >= threshold * 0.35) and (range_ratio + number_ratio >= (threshold * 1.1))):
-                print(f"• Coluna '{col}' identificada como Range de Números.")
-                detected_types[col] = "Número (range)"
-
-    return detected_types
 
 def transform_percent(df, threshold=0.8):
     percent_pattern = re.compile(r'^\s*(\d+[.,]?\d*)\s*%\s*$')
@@ -426,27 +362,10 @@ def format_cnae(value):
 
 def format_value(value):
     if isinstance(value, (int, float)):
-        return str(int(value))  # Se já for número, retorna como string
+        return str(int(value))  # Se for número puro, retorna apenas o inteiro como string
 
     if not isinstance(value, str):
-        return value  # Se não for string, retorna sem alterações
-
-    # Verifica se há palavras indicando magnitude numérica (mil, milhão, bilhão)
-    word_number_match = re.search(r'(\d+)\s*(milhão|milhões|bilhão|bilhões|mil)', value, re.IGNORECASE)
-
-    if word_number_match:
-        num = int(word_number_match.group(1))  # Obtém o número antes da palavra
-        multiplier = word_number_match.group(2).lower()  # Obtém a palavra (mil, milhão, bilhão)
-
-        # Define o multiplicador correspondente
-        if "milhão" in multiplier or "milhões" in multiplier:
-            num *= 1_000_000
-        elif "bilhão" in multiplier or "bilhões" in multiplier:
-            num *= 1_000_000_000
-        elif "mil" in multiplier:
-            num *= 1_000
-
-        return str(num)  # Retorna o número corrigido como string
+        return value  # Se não for string ou número, retorna sem alterações
 
     # Remover símbolos de moeda, letras e espaços
     value = re.sub(r'[^\d.,]', '', value)  # Mantém apenas números, pontos e vírgulas
@@ -533,7 +452,7 @@ def detect_identifiers(df, detected_types):
     Detecta se as colunas do DataFrame contêm emails, LinkedIn, Instagram, Sites, CPF, CNPJ. CNAE ou Telefone.
     Se mais da metade dos valores forem de um tipo específico, a coluna será categorizada.
     """
-    print("\n🔍 Detectando colunas de identificadores: \n→ Site, E-mail, LinkedIn, Instagram\n→ CPF, CNPJ, CNAE, Telefone")
+    print("\n🔍 Detectando colunas de identificadores: \n→ Site, E-mail, LinkedIn, Instagram\n→ CPF, CNPF, CNAE, Telefone")
 
     # Expressões regulares para identificação
     patterns = {
@@ -554,10 +473,6 @@ def detect_identifiers(df, detected_types):
             # Contagem de correspondências para expressões regulares
             regex_matches = {key: values.str.match(patterns[key]).sum() for key in patterns}
 
-            # Contagem de validações personalizadas
-            # print("\n📊 Exemplo de valores na coluna CNPJ antes da validação:")
-            # print(df["CNPJ"].head(10).tolist())  # Mostra os primeiros 10 CPFs na lista
-
             cpf_results = values.apply(is_valid_cpf)
             phone_results = values.apply(is_phone_number)
             cnpj_results = values.apply(is_valid_cnpj)
@@ -568,9 +483,6 @@ def detect_identifiers(df, detected_types):
             cnpj_matches = cnpj_results.eq("CNPJ").sum()
             cnae_matches = cnae_results.eq("CNAE").sum()
 
-            # Debug para verificar os valores retornados
-            # print(f"Resultados CNPJ para a coluna '{col}':\n{cnpj_results.value_counts()}")
-            # print(f"Coluna {col}: CNPJ count: {cnpj_matches}, total: {total_values}")
 
             # Combinar todas as contagens
             matches = {**regex_matches, "CPF": cpf_matches, "Telefone": phone_matches,
@@ -584,21 +496,24 @@ def detect_identifiers(df, detected_types):
                     print(f"•  Coluna '{col}' identificada como {tipo}.")
                     break  # Se uma categoria for detectada, não precisa verificar as outras
 
-    # # Exibir o resultado final
-    # for col, col_type in detected_types.items():
-    #     print(f"•  Coluna '{col}' identificada como {col_type}.")
 
     return detected_types
 
 def format_df(df, detected_types):
     """Remove caracteres não alfanuméricos de todas as colunas não identificadas anteriormente."""
-    print("\n🔍 Formatando colunas - fazendo alterações necessárias...")
+    print("\n🔍 Formatando colunas - removendo caracteres especiais...")
 
     def clean_column(value):
         if isinstance(value, str):
             if not value.strip():
                 return value  # Retorna o valor sem alterações se for vazio ou conter só espaços
             return re.sub(r'\D', '', value)
+        return value
+
+    def clean_gender(value):
+        if isinstance(value, str):
+            # Essa expressão remove "(a)" ou "(o)" no final da string, possivelmente precedido por espaços
+            return re.sub(r'\s*\([ao]\)$', '', value)
         return value
 
     # Criar uma cópia do DataFrame para evitar modificar o original
@@ -609,18 +524,17 @@ def format_df(df, detected_types):
         if detected_types.get(col, "") in ("Telefone", "CPF", "CNPJ", "CNAE")  # Retorna "" se col não existir
     ]
 
-    format_value_columns = [
+    format_txt_columns = [
+        col for col in df_formated.select_dtypes(include=["object"]).columns
+        if detected_types.get(col, "") == "Texto"
+    ]
+
+    format_values = [
         col for col in df_formated.select_dtypes(include=["object"]).columns
         if detected_types.get(col, "") == "Valor"
     ]
 
-    format_range_columns = [
-        col for col in df_formated.select_dtypes(include=["object"]).columns
-        if detected_types.get(col, "") == "Range de valores"
-    ]
-
     # Aplicar a formatação apenas nessas colunas
-    print("Formatando colunas de identificadores...")
     for col in format_columns:
         # Primeiro, aplica uma limpeza nos textos
         df_formated[col] = df_formated[col].map(clean_column)
@@ -633,20 +547,15 @@ def format_df(df, detected_types):
             df_formated[col] = df_formated[col].map(format_cnpj)
         elif detected_types.get(col, "") == "CNAE":
             df_formated[col] = df_formated[col].map(format_cnae)
-    #
-    # for col in format_txt_columns:
-    #         df_formated[col] = df_formated[col].map(clean_gender)
 
-    print("Formatando colunas de valores...")
-    for col in format_value_columns:
+    for col in format_txt_columns:
+            df_formated[col] = df_formated[col].map(clean_gender)
+
+    for col in format_values:
         df_formated[col] = df_formated[col].map(format_value)
-        # print(f"Coluna {col}: \n{df_formated[col]}")
+        print(f"Coluna {col}: \n{df_formated[col]}")
 
-    print("Formatando colunas com range de valores...")
-    for col in format_range_columns:
-        detected_types[col] = "Valor (range)"
-
-    print(f"✅ Colunas formatadas: {format_columns}, {format_value_columns}")
+    print(f"✅ Colunas formatadas: {format_columns}")
 
     return df_formated
 
@@ -679,7 +588,7 @@ def detect_column_type(df, detected_types):
                 detected_types[col] = "Texto"
 
         # Análise adicional para colunas de texto
-        if detected_types[col] == "Texto" or detected_types[col].endswith(" (range)"):
+        if detected_types[col] == "Texto":
             unique_values = df[col].dropna().unique()  # Obtém valores únicos, excluindo NaN
 
             unique_values_dict[col] = unique_values.tolist()
@@ -712,10 +621,6 @@ def analyze_table(df, filename):
     """Executa todas as etapas na sequência correta."""
     print(f"\nAnalisando dados em: {filename}\n")
 
-    # Configura pandas para exibir todas as colunas na saída
-    # pd.set_option('display.max_columns', None)  # Exibe todas as colunas
-    # pd.set_option('display.width', 200)  # Ajusta a largura do terminal para evitar truncamento
-    # Configura o pandas para exibir todas as linhas e colunas
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', None)
@@ -729,20 +634,18 @@ def analyze_table(df, filename):
     detected_types = detect_address(df, detected_types)
 
     detected_types = detect_finance(df, detected_types)
+
     detected_types = detect_identifiers(df, detected_types)
-    detected_types = detect_num_range(df, detected_types)
 
     df = transform_percent(df)
     df = format_df(df, detected_types)
-    # print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
+    print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
 
     # Detecta tipos de colunas e obtém valores únicos para colunas de texto
     detected_types, unique_values_dict = detect_column_type(df, detected_types)
 
     # Corrige colunas classificadas como 'Número com erro'
     df, detected_types = correct_number(df, detected_types)
-
-    print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
 
     result_df = pd.DataFrame(list(detected_types.items()), columns=['Coluna', 'Tipo'])
     print(f"\n{result_df}\n")
@@ -834,35 +737,26 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
             if new_col in match:
                 continue
 
-            # Verifica se os tipos de dados são compatíveis, ignorando " (range)"
+            # Verifica se os tipos de dados são compatíveis
             ref_col_type = ref_types.loc[ref_types['Coluna'] == ref_col, 'Tipo'].values[0] if ref_col in ref_types[
                 'Coluna'].values else 'Desconhecido'
             new_col_type = new_types.loc[new_types['Coluna'] == new_col, 'Tipo'].values[0] if new_col in new_types[
                 'Coluna'].values else 'Desconhecido'
 
-            # Remove " (range)" dos tipos de dados para a comparação, sem alterar os valores originais
-            ref_col_type_cleaned = ref_col_type.replace(" (range)", "")
-            new_col_type_cleaned = new_col_type.replace(" (range)", "")
-
             # Permite match se tipos forem iguais ou se um deles for Null e nomes idênticos
-            types_compatible = ref_col_type_cleaned == new_col_type
-            new_types_compatible = ref_col_type_cleaned == new_col_type_cleaned
-            # print(f"Types Compatible ({new_col} x {ref_col}): {types_compatible}")
+            types_compatible = (ref_col_type == new_col_type)
             null_types = "Null" in [ref_col_type, new_col_type]
-            # if new_col == 'Número de Funcionários' and ref_col == 'Número de Funcionários':
-            #     print(f"{ref_col}: {ref_col_type}, {ref_col_type_cleaned}.\n x {new_col}: {new_col_type}, {new_col_type_cleaned}")
 
-            if types_compatible or new_types_compatible or null_types:  # Apenas compara colunas do mesmo tipo e nulas
+
+            if types_compatible or null_types:  # Apenas compara colunas do mesmo tipo e nulas
                 # print(f"Comparando {new_col} ({new_col_type}) com {ref_col} ({ref_col_type})")
                 cleaned_new_col = re.sub(r'[.\-]', '', new_col).lower()
                 cleaned_ref_col = re.sub(r'[.\-]', '', ref_col).lower()
                 name_similarity = SequenceMatcher(None, cleaned_new_col, cleaned_ref_col).ratio()
-                # if new_col == 'Equipe' or new_col == 'Equipe.1':
-                #     print(f"{cleaned_new_col} x {cleaned_ref_col}: name similarity = {name_similarity:.2f}")
 
-                if name_similarity == 1 and (null_types or ref_col_type.endswith("(range)")): #TODO deixa isso?
-                    matched_columns[ref_col] = new_col
-                    match.update({ref_col: new_col})
+                if name_similarity == 1: #TODO deixa isso?
+                    matched_columns[new_col] = ref_col
+                    match.update({new_col: ref_col})
                     not_match_new.discard(new_col)
                     not_match_ref.discard(ref_col)
                     print(f"✅ Coluna '{new_col}' foi renomeada para '{ref_col}' por similaridade de nome {name_similarity:.2f}")
@@ -876,7 +770,8 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
                     date_cleaned_ref_col = re.sub(r'\b(?:data|de|em|da)\b',
                                                   '', re.sub(r'[.\-]', '', ref_col), flags=re.IGNORECASE).lower()
                     name_similarity = SequenceMatcher(None, date_cleaned_new_col, date_cleaned_ref_col).ratio()
-                    # if new_col == 'Data de Nascimento' or ref_col == 'Data de Nascimento':
+                    # if (new_col == 'Atualizado em' or ref_col == 'Data da Última Atualização' or
+                    #         ref_col == 'Data de Criação' or new_col == 'Data de Criação'):
                     #     print(f"{date_cleaned_new_col} x {date_cleaned_ref_col}: name similarity = {name_similarity:.2f}")
 
                 data_similarity = 0
@@ -890,8 +785,6 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
 
                         if total_values:
                             data_similarity = len(common_values) / len(total_values)
-                            if new_col == 'Equipe' or new_col == 'Equipe.1':
-                                print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
                             # print(f"TEXTO - Similaridade {new_col} e {ref_col}: {data_similarity}")
 
                     elif ref_col_type == "Data":
@@ -922,27 +815,9 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
                         # print(f"Variação new: {variation_new}, Variação ref: {variation_ref}, Variação total: {variation_score}")
                         # Combinar idade e variação para calcular similaridade final
                         data_similarity = (data_age * 0.4) + (variation_score * 0.6)
-                        # if new_col == 'Data de Nascimento' or ref_col == 'Data de Nascimento':
-                        #     print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
-
                         # if (new_col == 'Atualizado em' or ref_col == 'Data da Última Atualização' or
                         #         ref_col == 'Data de Criação' or new_col == 'Data de Criação'):
                         #     print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
-
-                    elif ref_col_type_cleaned == "Valor":
-                        # data_similarity = calculate_value_similarity(new_data, ref_data, new_col, ref_col)
-                        data_similarity = 1
-
-                        # if new_col == 'Receita Anual' or ref_col == 'Faturamento Anual':
-                        #     print(
-                        #         f"\n🔍 Comparação entre '{new_col}' e '{ref_col}': data similarity = {data_similarity:.2f}")
-                        #
-                        #     # Exibir resumo estatístico das colunas
-                        #     print("\n📊 Estatísticas de", new_col, ":")
-                        #     print(new_data[new_col].describe())
-                        #
-                        #     print("\n📊 Estatísticas de", ref_col, ":")
-                        #     print(ref_data[ref_col].describe())
 
                     else:  #TODO add regra?
                         # data_similarity = 1
@@ -955,18 +830,15 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
 
                         pd.set_option('display.max_rows', None)  # Exibir todas as linhas
 
+                        # if (new_col == 'Site' or ref_col == 'URL do Site' or
+                        #         ref_col == 'Site' or new_col == 'URL do Site'):
+                            # print(f"Dados da {new_data[new_col]}: \n{ref_data[ref_col]} ")
+
                         if total_values:
                             data_similarity = len(common_values) / len(total_values)
                             # print(f"NOT Texto/Data - Similaridade {new_col} e {ref_col}: {data_similarity}")
-                            if new_col == 'Equipe' or new_col == 'Equipe.1':
-                                print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
 
-                    if name_similarity == 1:
-                        overall_score = (name_similarity * 0.7) + (data_similarity * 0.3)
-                    else:
-                        overall_score = (name_similarity * 0.4) + (data_similarity * 0.6)
-                    # if new_col == 'Equipe' or new_col == 'Equipe.1':
-                    #     print(f"{new_col} x {ref_col}: overall similarity = {overall_score:.2f}")
+                    overall_score = (name_similarity * 0.4) + (data_similarity * 0.6)
 
                     if overall_score > best_score:
                         best_score = overall_score
@@ -974,191 +846,87 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
                         best_new_col = new_col  # Armazena a coluna correspondente
 
         if best_match and best_score >= threshold:
-            # Verifica se a coluna já tem um match e se o novo score é maior antes de substituir
-            if best_match not in matched_columns or best_score > SequenceMatcher(None, best_match,
-                                                                                 matched_columns[best_match]).ratio():
-                matched_columns[best_match] = best_new_col
-                not_match_new.discard(best_new_col)
-                not_match_ref.discard(best_match)
-                match.update({best_match: best_new_col})
-                if best_new_col == 'Equipe' or best_new_col == 'Equipe.1':
-                    print(f"{best_match} x {best_new_col}: \n{matched_columns}")
-                print(f"✅ Coluna '{best_new_col}' foi renomeada para '{best_match}' com score {best_score:.2f}")
+            matched_columns[best_new_col] = best_match
+            not_match_new.discard(best_new_col)
+            not_match_ref.discard(best_match)
+            match.update({best_new_col: best_match})
+            print(f"✅ Coluna '{best_new_col}' foi renomeada para '{best_match}' com score {best_score:.2f}")
 
     print("Correspondência de colunas concluída!\n\nMatchs realizados:")
     for chave, valor in match.items():
         print(f"{chave}: {valor}")
-    if not_match_ref:
-        print(f"\nColunas sem correspondência em {filename1}: {not_match_ref}")
-    if not_match_new:
-        print(f"Colunas sem correspondência em {filename2}: {not_match_new}\n")
+    print(f"\nColunas sem correspondência em {filename1}: {not_match_ref}")
+    print(f"Colunas sem correspondência em {filename2}: {not_match_new}\n")
 
     return matched_columns
 
 #---------------------------TRANSFORMAR OS DADOS DA TABELA NOVA---------------------------#
-def format_range(value):
-    if not isinstance(value, str) or len(value) < 2:
-        return None, None  # Retorna valores nulos se o dado for inválido
+def validate_data(new_data, matched_columns, ref_unique_values, columns_list):
+    """
+    Valida os dados em new_data com base nos valores únicos de ref_data.
 
-    # Remover símbolos de moeda, espaços e caracteres não numéricos (exceto "-" e "+")
-    clean_value = re.sub(r'[^\d\-,+]', '', value)
+    Parâmetros:
+      new_data: DataFrame que terá os dados validados.
+      matched_columns: dicionário no formato {coluna_new_data: coluna_ref_data}.
+      unique_values_dict: dicionário onde as chaves são nomes de colunas de ref_data
+                          e os valores são os conjuntos (ou listas) dos valores únicos.
+      columns_list: lista com os nomes das colunas de referência que devem ser validadas.
 
-    # Se o formato for "Até R$360.000"
-    if "Até" in value or clean_value.startswith('-'):
-        min_value = 0  # Define o mínimo como 0
-        max_value = re.sub(r'\D', '', clean_value)  # Mantém apenas números no máximo
-        max_value = int(max_value)
-        return int(min_value), max_value if max_value else None
+    Para cada par de colunas, se a coluna de referência estiver na lista,
+    os valores de new_data serão verificados: se algum valor não constar na lista
+    de valores únicos de ref_data, ele será substituído por None.
+    """
+    # Itera sobre cada par de colunas do dicionário de match
+    for new_col, ref_col in matched_columns.items():
+        # Verifica se a coluna de referência está na lista de validação
+        if ref_col in columns_list:
+            allowed_values = ref_unique_values.get(ref_col)
+            if allowed_values is None:
+                print(f"Aviso: Valores únicos para '{ref_col}' não encontrados em unique_values_dict.")
+                continue
 
-    # Se for um range no formato "R$360.000 - R$4.800.000"
-    elif '-' in clean_value:
-        min_value, max_value = clean_value.split('-')
-        min_value = re.sub(r'\D', '', min_value)
-        max_value = re.sub(r'\D', '', max_value)
-        min_value = int(min_value) if min_value else None
-        max_value = int(max_value) if max_value else None
-        return min_value, max_value
+            # Converte para set para busca mais rápida
+            allowed_set = set(allowed_values)
 
-    # Se for um valor aberto como "R$10.000.000.000 +"
-    elif "+" in clean_value:
-        min_value = re.sub(r'\D', '', clean_value)
-        min_value = int(min_value) if min_value else None
-        max_value = 999999999999999  # Define o máximo fixo como 999999999999999
-        return min_value, max_value
-
-    return None, None  # Caso não caia em nenhum formato esperado
-
-
-def transform_value(new_data, matched_columns, unique_values, ref_list, ref_types):
-    # # Filtrar os itens que possuem "Valor (range)" na coluna "Tipo"
-    # print(f"Matched columns: {matched_columns}. \nmatched_columns:: {type(matched_columns)}")
-    # print(f"Unique values: {unique_values}. \nunique_values: {type(unique_values)}")
-    # print(f"Ref list: {ref_list}. \nref_list: {type(ref_list)}")
-    # print(f"Ref types: {ref_types}. \nref_types: {type(ref_types)}")
-
-    print("Transformando valores tipo range")
-    range_columns = ref_types[ref_types['Tipo'].isin(['Valor (range)', 'Número (range)'])]['Coluna']
-    # print(f"Range columns: {range_columns}")
-
-    # print(f"Colunas: {range_columns}")
-
-    result_df = pd.DataFrame()
-
-    for column in range_columns:
-        if column in ref_list:
-            # print(f"Coluna {column} está na lista de drop down")
-            # print(f"Coluna {column} presente na lista de colunas")
-            # Buscar os valores associados em unique_values
-            # print(unique_values)
-            if column in unique_values:
-                # print(f"Coluna {column} está no dicionario")
-                # print(f"Coluna {column} presente no dicionario de valores únicos")
-                # unique_df = pd.DataFrame(unique_values[column], columns=[column])
-                unique_df = pd.DataFrame(unique_values.get(column, []), columns=[column])
-                # print(f"Unique df: {unique_df}")
-
-                # Se unique_df estiver vazio, imprimir aviso
-                if unique_df.empty:
-                    print(f"⚠️ Aviso: Nenhum valor encontrado em unique_values para {column}. Pulando...")
-                    continue
-
-                    # Criar colunas de mínimo e máximo
-                unique_df[[f"{column} - Min", f"{column} - Max"]] = (
-                    unique_df[column]
-                    .apply(lambda x: format_range(x))  # Retorna (Min, Max)
-                    .apply(pd.Series)
-                )
-                # print(f"Unique df min e max: {unique_df}")
-                # # Criar colunas de mínimo e máximo
-                # unique_df[[f"{column} - Min", f"{column} - Max"]] = unique_df[column].apply(lambda x: format_range(x)).apply(pd.Series)
-                # print(f"DF com os valores transformados: \n{unique_df}")
-
-                # Se `format_range` não estiver funcionando corretamente, pode retornar colunas vazias
-                if unique_df[[f"{column} - Min", f"{column} - Max"]].isnull().all().all():
-                    print(f"⚠️ Aviso: Todos os valores em {column} - Min e {column} - Max são NaN.")
-                    continue  # Evita continuar se os valores forem inválidos
-
-                # Armazenar o resultado
-                # result_df = pd.concat([result_df, unique_df], axis=0)
-                # print(f"DF resultante: \n{result_df}")
-
-                result_df = pd.concat([result_df, unique_df], axis=0).reset_index(drop=True)
-                # print(f"Result df: {result_df}")
-                # print(f"✔️ Intervalos para {column} gerados:\n{unique_df}")
-
-            # Verificar se há correspondência no dicionário matched_columns
-            # if column in matched_columns:
-            #     print(f"Coluna {column} presente no dicionario de matches")
-            #     mapped_column = matched_columns[column]
-            #
-            #     if mapped_column in new_data:
-            #         print(f"Coluna {mapped_column} presente no df novo")
-            #         # Criar uma nova coluna com os valores transformados
-            #         new_data[mapped_column] = pd.to_numeric(new_data[mapped_column], errors='coerce')
-
-            if column in matched_columns:
-                # print(f"Coluna {column} presente no dicionario de matches")
-                mapped_column = matched_columns[column]
-                if mapped_column in new_data:
-                    # print(f"🔹 Aplicando transformação na coluna correspondente: {mapped_column}")
-
-                    # ✅ Verificar se as colunas existem antes de acessá-las
-                    if f"{column} - Min" not in result_df.columns or f"{column} - Max" not in result_df.columns:
-                        print(f"⚠️ Aviso: Colunas {column} - Min e {column} - Max não encontradas. Pulando...")
-                        continue  # Evita erro de KeyError
-
-                    # Converter para numérico
-                    def convert_to_number(value):
-                        # Substitui vírgula por ponto para conversão correta
-                        value = str(value).replace(",", ".")
-
-                        # Verifica se é um número puro
-                        if value.replace(".", "", 1).isdigit():  # Permite apenas um ponto decimal
-                            return float(value)
-
-                        # Se for um intervalo "X-Y", calcular a média
-                        if "-" in value:
-                            parts = value.split("-")
-                            try:
-                                num1 = float(parts[0].strip())
-                                num2 = float(parts[1].strip())
-                                return (num1 + num2) / 2  # Média dos dois números
-                            except ValueError:
-                                return np.nan  # Caso algum valor não seja numérico, retorna NaN
-
-                        return np.nan  # Caso não seja possível converter
-
-                    new_data[mapped_column] = new_data[mapped_column].apply(convert_to_number)
-
-                    # print(f"New data: {new_data[mapped_column]}")
-
-                    def map_value(x):
-                        if pd.notnull(x):  # Evita erros com valores nulos
-                            row = result_df[
-                                (result_df[f"{column} - Min"] <= x) &
-                                (result_df[f"{column} - Max"] >= x)
-                                ]
-                            # print(f"Row: {row}")
-                            return row[column].values[0] if not row.empty else None
-                        return None
-
-                    # 🔹 Substituir a coluna original
-                    new_data[mapped_column] = new_data[mapped_column].apply(map_value)
-                    # print(f"New data: \n{new_data[mapped_column]}")
-                    # print(f"✔️ Transformação aplicada para {mapped_column}")
-                    # print(new_data)
-
+            # Aplica a validação: se o valor não estiver nos permitidos, substitui por None
+            new_data[new_col] = new_data[new_col].apply(lambda x: x if x in allowed_set else None)
+            # TODO ajustar esse "None"
+            print(f"Coluna '{new_col}' validada com base na referência '{ref_col}'.")
     return new_data
+
+# def transform_data(ref_data, new_data, matched_columns):
+#     print("\n📝 Iniciando transformação das colunas...")
+#
+#     # 1. Renomeia as colunas de new_data com base no dicionário:
+#     transformed_data = new_data.rename(columns=matched_columns)
+#     # print(f"Transformed data (renomear): {transformed_data}")
+#
+#     # 2. Remover colunas extras em `transformed_data` que não existem em `ref_data`
+#     transformed_data = transformed_data[[col for col in ref_data.columns if col in transformed_data.columns]].copy()
+#     # print(f"Transformed data (remover): {transformed_data}")
+#
+#     # 3. Adicionar colunas ausentes em `transformed_data`, preenchendo com "" (ou `None`, se preferir)
+#     missing_cols = set(ref_data.columns) - set(transformed_data.columns)
+#     for col in missing_cols:
+#         transformed_data.loc[:, col] = ""  # ⚠️ Agora usamos .loc para evitar o warning
+#
+#     # print(f"Transformed data (add): {transformed_data}")
+#
+#     # 4. Garantir que a ordem das colunas seja a mesma do `ref_data`
+#     transformed_data = transformed_data.reindex(columns=ref_data.columns, fill_value="")
+#
+#     print("Transformação de dados concluída!\n")
+#     print(f"Transformed data: \n{transformed_data}")
+#     return transformed_data
 
 def transform_data(ref_data, new_data, matched_columns):
     print("\n📝 Iniciando transformação das colunas...")
 
     # 1. Renomeia as colunas de new_data com base no dicionário:
     print("🔄 Renomeando colunas com base no dicionário de correspondências...")
-    renamed_columns = {v: k for k, v in matched_columns.items() if v in new_data.columns}
+    renamed_columns = {k: v for k, v in matched_columns.items() if k in new_data.columns}
     print(f"📌 Colunas renomeadas: {renamed_columns}")
-    transformed_data = new_data.rename(columns=renamed_columns).copy()
-    print(f"dados transformados de new_data: \n{transformed_data}")
+    transformed_data = new_data.rename(columns=matched_columns).copy()
 
     # 2. Remover colunas extras em `transformed_data` que não existem em `ref_data`
     print("🗑️ Removendo colunas que não existem na referência...")
@@ -1189,37 +957,6 @@ def transform_data(ref_data, new_data, matched_columns):
     print("✅ Transformação de dados concluída!\n")
     return transformed_data
 
-def validate_data(new_data, matched_columns, ref_unique_values, columns_list, threshold=0.6):
-    for ref_col, new_col in matched_columns.items():
-        if ref_col in columns_list:
-            allowed_values = ref_unique_values.get(ref_col, [])
-
-            if not allowed_values or not isinstance(allowed_values, list):
-                print(f"Aviso: Valores únicos para '{ref_col}' não encontrados ou inválidos.")
-                continue
-
-            # Garante que allowed_values seja uma lista de strings
-            allowed_values = [str(val).strip() for val in allowed_values]
-
-            def find_best_match(value):
-                if pd.isna(value) or value == "nan":  # Se for NaN, retorna vazio
-                    return ""
-                value = str(value).strip()  # Converte para string e remove espaços extras
-
-                # Obtém a melhor correspondência e a pontuação de similaridade
-                best_match, score = process.extractOne(value, allowed_values)
-
-                return best_match if score >= threshold else value  # Retorna o original se não for próximo o suficiente
-
-            # Verifica se a coluna existe no DataFrame antes de aplicar a correção
-            if new_col in new_data.columns:
-                new_data[new_col] = new_data[new_col].astype(str).apply(find_best_match)
-                print(f"Coluna '{new_col}' validada com base na referência '{ref_col}'.")
-            else:
-                print(f"Aviso: Coluna '{new_col}' não encontrada no DataFrame.")
-
-    return new_data
-
 #---------------------------EXECUTAR PROCESSO COMPLETO---------------------------#
 def main(ref_data_path, new_data_path, ref_filename, new_filename):
     try:
@@ -1249,7 +986,6 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
             df_new, new_types, _ = analyze_table(new_data, new_path)
 
             matched_columns = match_columns(df_ref, df_new, ref_types, new_types, ref_path, new_path)
-            df_new = transform_value(df_new, matched_columns, unique_values_dict_ref, ref_dd_list, ref_types)
 
             validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_dd_list)
 
@@ -1258,7 +994,6 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
             transformed_data = transformed_data.astype(str)
             # Substituir todas as ocorrências da string "NaN" por valores vazios (sem inplace=True)
             transformed_data.replace("nan", "", inplace=True)
-            transformed_data.replace("None", "", inplace=True)
 
             # Converte o DataFrame para JSON (uma lista de registros)
             json_data = transformed_data.to_json(orient='records')
