@@ -1,11 +1,7 @@
 .DS_Store
 .gitignore
 MODELO Despadronizado _ ENTIDADE - EMPRESA.xlsx
-MODELO Despadronizado _ ENTIDADE - NEGÓCIO - TABELA.csv
-MODELO Despadronizado _ ENTIDADE - NEGÓCIO.xlsx
 MODELO _ ENTIDADE - CLIENTE.xlsx
-MODELO _ ENTIDADE - NEGÓCIO - TABELA.csv
-MODELO _ ENTIDADE - NEGÓCIO.xlsx
 MODELO_ENTIDADE_EMPRESA (2).xlsx
 MODELO_ENTIDADE_PESSOA (3).xlsx
 Matchs incorretos.xlsx

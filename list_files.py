@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # Define a pasta onde estão os arquivos
-pasta = Path("/")
+pasta = Path("/Users/geners/Documents/02_Projeto_Scala")
 
 # Obtém a lista de nomes dos arquivos na pasta e ordena alfabeticamente
 arquivos = sorted([f.name for f in pasta.iterdir() if f.is_file()])
