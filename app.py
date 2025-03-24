@@ -1,20 +1,16 @@
 from flask import Flask, request, jsonify, Response
 import os
-# from code_sup import new_file, ref_file
 from transform_data import main  # Importa a função de processamento
-# import unicodedata
-# import re
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 
+# Certifique-se de que a pasta de uploads existe
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/process", methods=["POST"])
 def process_file():
-    # Certifique-se de que a pasta de uploads existe
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
     print("Requisição recebida!")  # 🚀 Confirma que a requisição chegou
 
     if not request.files:
@@ -54,6 +50,7 @@ def process_file():
     result = main(file_ref_name, file_new_name, ref_name, new_name)
     print("Arquivos processados!")
 
+    print("Resultado JSON:", result[:500])  # Mostra os primeiros 500 caracteres
     return Response(result, mimetype='application/json')
 
 
