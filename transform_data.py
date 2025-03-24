@@ -1192,7 +1192,7 @@ def validate_data(new_data, matched_columns, ref_unique_values, columns_list, th
                 value = str(value).strip()  # Converte para string e remove espaços extras
 
                 # Obtém a melhor correspondência e a pontuação de similaridade
-                best_match, score = process.extractOne(value, allowed_values)
+                best_match, score, _ = process.extractOne(value, allowed_values)
 
                 return best_match if score >= threshold else value  # Retorna o original se não for próximo o suficiente
 
@@ -1235,9 +1235,13 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
             df_ref, ref_types, unique_values_dict_ref = analyze_table(ref_data, ref_path)
             df_new, new_types, _ = analyze_table(new_data, new_path)
 
+            print("\n📊 Realizando match das colunas...")
             matched_columns = match_columns(df_ref, df_new, ref_types, new_types, ref_path, new_path)
+
+            print("\n📊 Transformando valores ($$) do DF...")
             df_new = transform_value(df_new, matched_columns, unique_values_dict_ref, ref_dd_list, ref_types)
 
+            print("\n📊 Validando dados...")
             validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_dd_list)
 
             transformed_data = transform_data(df_ref, validated_data, matched_columns)
