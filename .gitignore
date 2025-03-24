@@ -1,0 +1,74 @@
+MODELO Despadronizado _ ENTIDADE - EMPRESA.xlsx
+MODELO _ ENTIDADE - CLIENTE.xlsx
+MODELO_ENTIDADE_EMPRESA (2).xlsx
+MODELO_ENTIDADE_PESSOA (3).xlsx
+Matchs incorretos.xlsx
+Matchs_incorretos.xlsx
+Modelo Despadronizado Cliente.xlsx
+Modelo Despadronizado _ ENTIDADE - PESSOA.xlsx
+app_backup_23-03.py
+arquivo_modelo_pessoas.csv
+arquivo_pessoas.csv
+backup.py
+backup2.py
+backup_main_all.py
+column_type.py
+date.csv
+ex.py
+files.txt
+format_date.py
+list_files.py
+lista_arquivos.txt
+main.py
+main_all.py
+merged_data.csv
+new_data1.csv
+new_data_cliente.csv
+new_data_empresa.csv
+new_data_negocio.csv
+new_data_pessoa.csv
+ref_data_cliente.csv
+ref_data_empresa.csv
+ref_data_negocio.csv
+ref_data_pessoa.csv
+ref_data_short.csv
+refined_data.csv
+short_ref_data.csv
+support.py
+test.csv
+test.py
+test_semantica.py
+teste.csv
+teste_comparar.csv
+transform_data_backup.py
+transform_data_backup2.py
+transform_data_backup_23-03.py
+transformed_data.csv
+transformed_data.json
+transformed_data2.json
+transformed_data_cliente.csv
+transformed_data_cliente.json
+transformed_data_empresa.csv
+transformed_data_empresa.json
+transformed_data_negocio.csv
+transformed_data_negocio.json
+transformed_data_pessoa.csv
+transformed_data_pessoa.json
+val_data_cliente.csv
+val_data_empresa.csv
+val_data_negocio.csv
+val_data_pessoa.csv
+validar_output.csv
+validar_output_empresa.csv
+validar_output_negocio.csv
+validate.csv
+validate_client.csv
+validate_cliente.csv
+validate_data.csv
+validate_data.py
+validate_data_cliente.csv
+validate_data_empresa.csv
+validate_data_negocio.csv
+validate_data_pessoa.csv
+validate_empresa.csv
+validate_negocio.csv
