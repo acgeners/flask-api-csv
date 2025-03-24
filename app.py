@@ -5,7 +5,6 @@ from transform_data import main  # Importa a função de processamento
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER)
 
 # Certifique-se de que a pasta de uploads existe
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
