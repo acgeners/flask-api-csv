@@ -1244,6 +1244,7 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
             print("\n📊 Validando dados...")
             validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_dd_list)
 
+            print("\n📊 Organiza DF final (add e del colunas, muda ordem, etc)...")
             transformed_data = transform_data(df_ref, validated_data, matched_columns)
             # TODO ver se precisa disso
             transformed_data = transformed_data.astype(str)
