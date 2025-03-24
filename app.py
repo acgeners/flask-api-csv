@@ -50,6 +50,7 @@ def process_file():
     result = main(file_ref_name, file_new_name, ref_name, new_name)
     print("Arquivos processados!")
 
+    print("Resultado JSON:", result[:500])  # Mostra os primeiros 500 caracteres
     return Response(result, mimetype='application/json')
 
 
