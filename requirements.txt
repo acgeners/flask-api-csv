@@ -1,7 +1,7 @@
 flask
 gunicorn
 pandas
-numpy
+numpy<2
 python-dateutil
 fuzzywuzzy
 python-Levenshtein
