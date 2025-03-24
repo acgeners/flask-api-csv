@@ -3,7 +3,8 @@ gunicorn
 pandas
 numpy<2
 python-dateutil
-rapidfuzz==3.12.2
+fuzzywuzzy
+python-Levenshtein
 
 sentence-transformers==2.3.1
 
@@ -12,3 +13,4 @@ huggingface_hub==0.20.3
 torch==2.2.2+cpu
 
 --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
+

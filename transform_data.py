@@ -4,7 +4,7 @@ from code_sup import VALID_DDD, months, month_translation
 import pandas as pd
 import re
 from dateutil import parser
-from fuzzywuzzy import process
+from rapidfuzz import process
 import time
 
 #---------------------------IDENTIFICAR PLANILHA---------------------------#
