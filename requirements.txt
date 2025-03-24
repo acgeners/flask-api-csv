@@ -6,7 +6,8 @@ python-dateutil
 fuzzywuzzy
 python-Levenshtein
 
-sentence-transformers==2.2.0 --prefer-binary
+sentence-transformers==2.1.0
+
 transformers==4.38.2
 huggingface_hub==0.20.3
 torch==2.2.2+cpu
