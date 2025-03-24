@@ -857,7 +857,8 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
     not_match_new = set(new_data.columns)
     not_match_ref = set(ref_data.columns)
     candidates = []
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
+    # model = SentenceTransformer('all-MiniLM-L6-v2')
 
     # Calcula o embedding de cada coluna
     ref_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in ref_data.columns}
