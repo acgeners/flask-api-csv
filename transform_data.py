@@ -4,6 +4,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, util
 from code_sup import VALID_DDD, months, month_translation
 import pandas as pd
+from pandas.errors import ParserError, EmptyDataError
 import re
 from dateutil import parser
 from rapidfuzz import process
@@ -11,22 +12,29 @@ import time
 
 #---------------------------CARREGAR E IDENTIFICAR PLANILHA---------------------------#
 def load_csv_auto(path, encoding='utf-8'):
+
     separadores_possiveis = [',', ';', '\t']
     melhor_df = None
     max_colunas = 0
 
     for sep in separadores_possiveis:
         try:
+            print(f"🧪 Tentando com separador: '{sep}'")
             df = pd.read_csv(
                 path,
                 sep=sep,
                 quotechar='"',
                 encoding=encoding,
-                engine='python',            # engine mais tolerante
-                on_bad_lines='skip'         # ignora linhas problemáticas
+                engine='python',
+                on_bad_lines='skip'
             )
 
-            # Aplica o filtro de 95% vazios
+            # 🧠 Verifica se só tem uma coluna: provavelmente separador errado
+            if df.shape[1] <= 1:
+                print(f"⚠️ Detecção falhou com separador '{sep}': apenas {df.shape[1]} coluna.")
+                continue
+
+            # Aplica filtro de preenchimento mínimo
             thresh_colunas = int(df.shape[0] * 0.05)
             df.dropna(axis=1, thresh=thresh_colunas, inplace=True)
 
@@ -36,15 +44,16 @@ def load_csv_auto(path, encoding='utf-8'):
             if df.shape[1] > max_colunas:
                 melhor_df = df
                 max_colunas = df.shape[1]
-        except (pd.errors.ParserError, UnicodeDecodeError) as e:
+
+        except (ParserError, UnicodeDecodeError, EmptyDataError) as e:
             print(f"[Aviso] Falha com separador '{sep}': {e}")
             continue
 
     if melhor_df is not None:
-        print(f"✅ CSV carregado. Linhas: {melhor_df.shape[0]} | Colunas: {melhor_df.shape[1]}")
+        print(f"✅ CSV carregado com sucesso. Linhas: {melhor_df.shape[0]} | Colunas: {melhor_df.shape[1]}")
         return melhor_df
     else:
-        raise ValueError("❌ Não foi possível detectar o formato do CSV.")
+        raise ValueError("❌ Não foi possível detectar o formato do CSV. Verifique o separador ou conteúdo.")
 
 
 def classificar_df(df) -> str:
