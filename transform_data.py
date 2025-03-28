@@ -860,22 +860,44 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
     not_match_new = set(new_data.columns)
     not_match_ref = set(ref_data.columns)
     candidates = []
+
+    # Model instanciado só uma vez
     model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
-    # model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    # Calcula o embedding de cada coluna
-    ref_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in ref_data.columns}
-    new_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in new_data.columns}
+    # Nome das colunas
+    ref_cols = list(ref_data.columns)
+    new_cols = list(new_data.columns)
 
-    # Cria os textos descritivos pra cada coluna, gera embeddings e calcula similaridade semântica entre os dados
-    ref_data_desc = {
-        col: model.encode(describe_data_column(ref_data[col], col), convert_to_tensor=True)
-        for col in ref_data.columns
-    }
-    new_data_desc = {
-        col: model.encode(describe_data_column(new_data[col], col), convert_to_tensor=True)
-        for col in new_data.columns
-    }
+    # Embeddings dos nomes
+    ref_embeddings_list = model.encode(ref_cols, convert_to_tensor=False)
+    new_embeddings_list = model.encode(new_cols, convert_to_tensor=False)
+
+    ref_embeddings = dict(zip(ref_cols, ref_embeddings_list))
+    new_embeddings = dict(zip(new_cols, new_embeddings_list))
+
+    # Embeddings das descrições
+    ref_descriptions = [describe_data_column(ref_data[col], col) for col in ref_cols]
+    new_descriptions = [describe_data_column(new_data[col], col) for col in new_cols]
+
+    ref_data_desc_list = model.encode(ref_descriptions, convert_to_tensor=False)
+    new_data_desc_list = model.encode(new_descriptions, convert_to_tensor=False)
+
+    ref_data_desc = dict(zip(ref_cols, ref_data_desc_list))
+    new_data_desc = dict(zip(new_cols, new_data_desc_list))
+
+    # # Calcula o embedding de cada coluna
+    # ref_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in ref_data.columns}
+    # new_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in new_data.columns}
+    #
+    # # Cria os textos descritivos pra cada coluna, gera embeddings e calcula similaridade semântica entre os dados
+    # ref_data_desc = {
+    #     col: model.encode(describe_data_column(ref_data[col], col), convert_to_tensor=True)
+    #     for col in ref_data.columns
+    # }
+    # new_data_desc = {
+    #     col: model.encode(describe_data_column(new_data[col], col), convert_to_tensor=True)
+    #     for col in new_data.columns
+    # }
 
     print("\nIniciando correspondência de colunas...")
 
