@@ -11,19 +11,27 @@ import time
 
 #---------------------------CARREGAR E IDENTIFICAR PLANILHA---------------------------#
 def load_csv_auto(path, encoding='utf-8'):
+    import pandas as pd
     separadores_possiveis = [',', ';', '\t']
     melhor_df = None
     max_colunas = 0
 
     for sep in separadores_possiveis:
         try:
-            df = pd.read_csv(path, sep=sep, quotechar='"', encoding=encoding)
+            df = pd.read_csv(
+                path,
+                sep=sep,
+                quotechar='"',
+                encoding=encoding,
+                engine='python',            # engine mais tolerante
+                on_bad_lines='skip'         # ignora linhas problemáticas
+            )
 
             # Aplica o filtro de 95% vazios
-            thresh_colunas = int(df.shape[0] * 0.05)  # pelo menos 5% preenchido
+            thresh_colunas = int(df.shape[0] * 0.05)
             df.dropna(axis=1, thresh=thresh_colunas, inplace=True)
 
-            thresh_linhas = int(df.shape[1] * 0.05)  # pelo menos 5% preenchido
+            thresh_linhas = int(df.shape[1] * 0.05)
             df.dropna(axis=0, thresh=thresh_linhas, inplace=True)
 
             if df.shape[1] > max_colunas:
@@ -1249,7 +1257,6 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
 
         start_time = time.time()
 
-        # TODO esse ", dtype=str).dropna(how='all'" talvez tenha que tirar
         print("Carregando arquivos CSV...")
         ref_data = pd.read_csv(ref_data_path, dtype=str).dropna(how='all')
         # new_data = pd.read_csv(new_data_path, dtype=str).dropna(how='all')
