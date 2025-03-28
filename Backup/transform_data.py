@@ -460,9 +460,6 @@ def format_cnae(value):
         return None
 
 def format_value(value):
-    if pd.isna(value):  # <- esta linha resolve o problema
-        return value  # ou pode retornar "" se quiser uma string vazia
-
     if isinstance(value, (int, float)):
         return str(int(value))  # Se já for número, retorna como string
 
