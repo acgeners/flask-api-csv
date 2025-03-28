@@ -1,3 +1,5 @@
+# import gc
+
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
 from code_sup import VALID_DDD, months, month_translation
@@ -773,11 +775,11 @@ def analyze_table(df, filename):
     # Corrige colunas classificadas como 'Número com erro'
     df, detected_types = correct_number(df, detected_types)
 
-    print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
+    # print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
 
     result_df = pd.DataFrame(list(detected_types.items()), columns=['Coluna', 'Tipo'])
     print(f"\n{result_df}\n")
-    print(df)
+    # print(df)
 
     return df, result_df, unique_values_dict
 
@@ -861,7 +863,6 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
     not_match_ref = set(ref_data.columns)
     candidates = []
 
-    # Model instanciado só uma vez
     model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
 
     # Nome das colunas
@@ -871,139 +872,115 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
     # Embeddings dos nomes
     ref_embeddings_list = model.encode(ref_cols, convert_to_tensor=False)
     new_embeddings_list = model.encode(new_cols, convert_to_tensor=False)
-
     ref_embeddings = dict(zip(ref_cols, ref_embeddings_list))
     new_embeddings = dict(zip(new_cols, new_embeddings_list))
 
     # Embeddings das descrições
     ref_descriptions = [describe_data_column(ref_data[col], col) for col in ref_cols]
     new_descriptions = [describe_data_column(new_data[col], col) for col in new_cols]
-
     ref_data_desc_list = model.encode(ref_descriptions, convert_to_tensor=False)
     new_data_desc_list = model.encode(new_descriptions, convert_to_tensor=False)
-
     ref_data_desc = dict(zip(ref_cols, ref_data_desc_list))
     new_data_desc = dict(zip(new_cols, new_data_desc_list))
 
-    # # Calcula o embedding de cada coluna
-    # ref_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in ref_data.columns}
-    # new_embeddings = {col: model.encode(col, convert_to_tensor=True) for col in new_data.columns}
-    #
-    # # Cria os textos descritivos pra cada coluna, gera embeddings e calcula similaridade semântica entre os dados
-    # ref_data_desc = {
-    #     col: model.encode(describe_data_column(ref_data[col], col), convert_to_tensor=True)
-    #     for col in ref_data.columns
-    # }
-    # new_data_desc = {
-    #     col: model.encode(describe_data_column(new_data[col], col), convert_to_tensor=True)
-    #     for col in new_data.columns
-    # }
+    # 🔎 Salva apenas colunas do tipo "Data"
+    ref_data_dates = {
+        col: ref_data[col] for col in ref_cols
+        if col in ref_types['Coluna'].values and ref_types.loc[ref_types['Coluna'] == col, 'Tipo'].values[0] == "Data"
+    }
+    new_data_dates = {
+        col: new_data[col] for col in new_cols
+        if col in new_types['Coluna'].values and new_types.loc[new_types['Coluna'] == col, 'Tipo'].values[0] == "Data"
+    }
+
+    # # 🧹 Libera os DataFrames inteiros
+    # del ref_data, new_data
+    # gc.collect()
 
     print("\nIniciando correspondência de colunas...")
 
-    for ref_col in ref_data.columns:
-        for new_col in new_data.columns:
+    for ref_col in ref_cols:
+        for new_col in new_cols:
             if new_col in match:
                 continue
 
             ref_embedding = ref_embeddings[ref_col]
             new_embedding = new_embeddings[new_col]
-
             name_similarity = util.cos_sim(ref_embedding, new_embedding).item()
-            # TODO isso não deveria considerar
 
-            # Verifica se os tipos de dados são compatíveis, ignorando " (range)"
-            ref_col_type = ref_types.loc[ref_types['Coluna'] == ref_col, 'Tipo'].values[0] if ref_col in ref_types[
-                'Coluna'].values else 'Desconhecido'
-            new_col_type = new_types.loc[new_types['Coluna'] == new_col, 'Tipo'].values[0] if new_col in new_types[
-                'Coluna'].values else 'Desconhecido'
-
-            # Limpa espaços e sufixo " (range)" apenas para comparação
+            # Verifica tipos de dados
+            ref_col_type = ref_types.loc[ref_types['Coluna'] == ref_col, 'Tipo'].values[0] if ref_col in ref_types['Coluna'].values else 'Desconhecido'
+            new_col_type = new_types.loc[new_types['Coluna'] == new_col, 'Tipo'].values[0] if new_col in new_types['Coluna'].values else 'Desconhecido'
             ref_col_type = ref_col_type.strip()
             new_col_type = new_col_type.strip()
             ref_col_type_cleaned = ref_col_type.replace(" (range)", "")
             new_col_type_cleaned = new_col_type.replace(" (range)", "")
-
             types_compatible = ref_col_type_cleaned == new_col_type_cleaned
             null_types = "Null" in [ref_col_type_cleaned, new_col_type_cleaned]
-            if types_compatible or null_types:  # Apenas compara colunas do mesmo tipo e nulas
-                #  or value_number
-                print(f"{new_col} x {ref_col}: name similarity = {name_similarity:.2f}")
 
-                if name_similarity >= 0.98 and (null_types or ref_col_type.endswith("(range)")): #TODO deixa isso?
+            if types_compatible or null_types:
+                print(f"{new_col} x {ref_col}: name similarity = {name_similarity:.2f}")
+                if name_similarity >= 0.98 and (null_types or ref_col_type.endswith("(range)")):
                     overall_score = 1.0
                     candidates.append((ref_col, new_col, overall_score))
-                    print(
-                        f"✅ Coluna '{new_col}' adicionada como match direto de '{ref_col}' por similaridade de nome = 1")
+                    print(f"✅ Coluna '{new_col}' adicionada como match direto de '{ref_col}' por similaridade de nome = 1")
 
             if types_compatible and not null_types:
-            #  or value_number)
-                data_similarity = 0
-                if new_col in new_data.columns and ref_col in ref_data.columns:
-                    if ref_col_type == "Data":
-                        formated_new = new_data[new_col].str.replace(r'\D', '', regex=True)
-                        formated_ref = ref_data[ref_col].str.replace(r'\D', '', regex=True)
+                # data_similarity = 0
 
-                        year_new = year_evaluation(new_data[new_col])
-                        year_ref = year_evaluation(ref_data[ref_col])
+                if ref_col_type == "Data" and ref_col in ref_data_dates and new_col in new_data_dates:
+                    formated_new = new_data_dates[new_col].astype(str).str.replace(r'\D', '', regex=True)
+                    formated_ref = ref_data_dates[ref_col].astype(str).str.replace(r'\D', '', regex=True)
 
-                        # Média das diferenças formatada pelo ano atual
-                        data_age = (100 - (abs(year_new - year_ref))) / 100
+                    year_new = year_evaluation(new_data_dates[new_col])
+                    year_ref = year_evaluation(ref_data_dates[ref_col])
 
-                        variation_new = date_var(formated_new)
-                        variation_ref = date_var(formated_ref)
+                    data_age = (100 - abs(year_new - year_ref)) / 100
+                    variation_new = date_var(formated_new)
+                    variation_ref = date_var(formated_ref)
 
-                        if isinstance(variation_new, pd.Series):
-                            variation_new = variation_new.mean()
-                        if isinstance(variation_ref, pd.Series):
-                            variation_ref = variation_ref.mean()
+                    if isinstance(variation_new, pd.Series):
+                        variation_new = variation_new.mean()
+                    if isinstance(variation_ref, pd.Series):
+                        variation_ref = variation_ref.mean()
 
-                        scaling_factor = 0.3  # ajustar esse valor conforme necessário
-                        variation_diff = abs(variation_new - variation_ref)
+                    scaling_factor = 0.3
+                    variation_diff = abs(variation_new - variation_ref)
+                    variation_score = 1 - ((variation_diff * scaling_factor) / max(variation_new, variation_ref, 1))
+                    data_similarity = (data_age * 0.4) + (variation_score * 0.6)
 
-                        # Normaliza entre 0 e 1
-                        variation_score = 1 - ((variation_diff * scaling_factor) / max(variation_new, variation_ref, 1))
-                        # Combinar idade e variação para calcular similaridade final
-                        data_similarity = (data_age * 0.4) + (variation_score * 0.6)
+                elif ref_col_type_cleaned == "Valor":
+                    data_similarity = 1
 
-                    elif ref_col_type_cleaned == "Valor":
-                        data_similarity = 1
+                else:
+                    ref_data_emb = ref_data_desc[ref_col]
+                    new_data_emb = new_data_desc[new_col]
+                    data_similarity = util.cos_sim(ref_data_emb, new_data_emb).item()
 
-                    else:  #TODO add regra?
-                        # Calcula a similaridade entre os dados e suas descrições (baseado em amostragem)
-                        ref_data_emb = ref_data_desc[ref_col]
-                        new_data_emb = new_data_desc[new_col]
-
-                        data_similarity = util.cos_sim(ref_data_emb, new_data_emb).item()
-
-                    print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
+                print(f"{new_col} x {ref_col}: data similarity = {data_similarity:.2f}")
 
                 if name_similarity == 1:
                     overall_score = (name_similarity * 0.7) + (data_similarity * 0.3)
                 else:
                     overall_score = (name_similarity * 0.25) + (data_similarity * 0.75)
-                    # TODO verificar os pesos
 
                 print(f"Score final: {ref_col} x {new_col} = {overall_score}")
 
                 if overall_score >= threshold:
                     candidates.append((ref_col, new_col, overall_score))
 
-    # ✅ Após o loop: resolve matches com maior score, sem repetir colunas
     used_new_cols = set()
     matched_columns = {}
-
     candidates.sort(key=lambda x: x[2], reverse=True)
 
     for ref_col, new_col, score in candidates:
-            if ref_col not in matched_columns and new_col not in used_new_cols:
-                matched_columns[ref_col] = new_col
-                used_new_cols.add(new_col)
-                not_match_new.discard(new_col)
-                not_match_ref.discard(ref_col)
-                print(f"✅ Coluna '{new_col}' foi renomeada para '{ref_col}' com score {score:.2f}")
+        if ref_col not in matched_columns and new_col not in used_new_cols:
+            matched_columns[ref_col] = new_col
+            used_new_cols.add(new_col)
+            not_match_new.discard(new_col)
+            not_match_ref.discard(ref_col)
+            print(f"✅ Coluna '{new_col}' foi renomeada para '{ref_col}' com score {score:.2f}")
 
-    # Impressão final
     print("\n\nCorrespondência de colunas concluída!\n\nMatchs realizados (definitivos):")
     for ref_col, new_col in matched_columns.items():
         print(f"{ref_col}: {new_col}")
@@ -1014,6 +991,7 @@ def match_columns(ref_data, new_data, ref_types, new_types, filename1, filename2
         print(f"Colunas sem correspondência em {filename2}: {not_match_new}\n")
 
     return matched_columns
+
 
 #---------------------------TRANSFORMAR OS DADOS DA TABELA NOVA---------------------------#
 def format_range(value):
@@ -1244,6 +1222,9 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
         new_data = pd.read_csv(new_data_path, dtype=str).dropna(how='all')
 
         print("📊 Analisando tipos de tabela...")
+        new_data = new_data.dropna(axis=1, how='all')
+        empty_cols = new_data.columns[new_data.isna().all()]
+        print(empty_cols)
         ref_df = classificar_df(ref_data)
         new_df = classificar_df(new_data)
         if ref_df == new_df:
