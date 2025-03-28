@@ -9,7 +9,37 @@ from dateutil import parser
 from rapidfuzz import process
 import time
 
-#---------------------------IDENTIFICAR PLANILHA---------------------------#
+#---------------------------CARREGAR E IDENTIFICAR PLANILHA---------------------------#
+def load_csv_auto(path, encoding='utf-8'):
+    separadores_possiveis = [',', ';', '\t']
+    melhor_df = None
+    max_colunas = 0
+
+    for sep in separadores_possiveis:
+        try:
+            df = pd.read_csv(path, sep=sep, quotechar='"', encoding=encoding)
+
+            # Aplica o filtro de 95% vazios
+            thresh_colunas = int(df.shape[0] * 0.05)  # pelo menos 5% preenchido
+            df.dropna(axis=1, thresh=thresh_colunas, inplace=True)
+
+            thresh_linhas = int(df.shape[1] * 0.05)  # pelo menos 5% preenchido
+            df.dropna(axis=0, thresh=thresh_linhas, inplace=True)
+
+            if df.shape[1] > max_colunas:
+                melhor_df = df
+                max_colunas = df.shape[1]
+        except (pd.errors.ParserError, UnicodeDecodeError) as e:
+            print(f"[Aviso] Falha com separador '{sep}': {e}")
+            continue
+
+    if melhor_df is not None:
+        print(f"✅ CSV carregado. Linhas: {melhor_df.shape[0]} | Colunas: {melhor_df.shape[1]}")
+        return melhor_df
+    else:
+        raise ValueError("❌ Não foi possível detectar o formato do CSV.")
+
+
 def classificar_df(df) -> str:
     """
     Classifica um DataFrame de acordo com suas colunas.
@@ -79,16 +109,19 @@ def detect_date_format(date_series):
 
 
 def is_potential_date(value):
-    """Verifica se um valor pode ser uma data, analisando se contém separadores ou nomes de meses."""
-    value_str = str(value)
+    """Verifica se um valor pode ser uma data, evitando confundir com floats e inteiros."""
+    value_str = str(value).strip()
 
-    if re.search(r"[-/.]", value_str):
-        return True
+    # Se for número puro (int ou float simples), não é data
+    if re.fullmatch(r"\d+(\.\d+)?", value_str):
+        return False
 
-    if re.search(months, value_str, re.IGNORECASE):
+    # Se tiver separadores ou nomes de meses, pode ser data
+    if re.search(r"[-/.]", value_str) or re.search(months, value_str, re.IGNORECASE):
         return True
 
     return False
+
 
 def replace_months(value):
     """Substitui os meses em português por inglês para facilitar a conversão de datas."""
@@ -117,7 +150,7 @@ def is_date(value, dayfirst=True):
         if 1900 <= parsed.year <= 2100:
             return True
         return False
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
         return False
 
 
@@ -1219,12 +1252,10 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
         # TODO esse ", dtype=str).dropna(how='all'" talvez tenha que tirar
         print("Carregando arquivos CSV...")
         ref_data = pd.read_csv(ref_data_path, dtype=str).dropna(how='all')
-        new_data = pd.read_csv(new_data_path, dtype=str).dropna(how='all')
+        # new_data = pd.read_csv(new_data_path, dtype=str).dropna(how='all')
+        new_data = load_csv_auto(new_data_path)
 
         print("📊 Analisando tipos de tabela...")
-        new_data = new_data.dropna(axis=1, how='all')
-        empty_cols = new_data.columns[new_data.isna().all()]
-        print(empty_cols)
         ref_df = classificar_df(ref_data)
         new_df = classificar_df(new_data)
         if ref_df == new_df:
