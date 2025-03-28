@@ -29,6 +29,8 @@ def load_csv_auto(path, encoding='utf-8'):
                 on_bad_lines='skip'
             )
 
+            print(f"Número de colunas original: {len(df)}")
+
             # 🧠 Verifica se só tem uma coluna: provavelmente separador errado
             if df.shape[1] <= 1:
                 print(f"⚠️ Detecção falhou com separador '{sep}': apenas {df.shape[1]} coluna.")
@@ -798,10 +800,10 @@ def analyze_table(df, filename):
     # pd.set_option('display.max_columns', None)  # Exibe todas as colunas
     # pd.set_option('display.width', 200)  # Ajusta a largura do terminal para evitar truncamento
     # Configura o pandas para exibir todas as linhas e colunas
-    pd.set_option('display.max_rows', None)
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.width', None)
-    pd.set_option('display.expand_frame_repr', False)
+    # pd.set_option('display.max_rows', None)
+    # pd.set_option('display.max_columns', None)
+    # pd.set_option('display.width', None)
+    # pd.set_option('display.expand_frame_repr', False)
 
     detected_types = {}
 
@@ -827,7 +829,7 @@ def analyze_table(df, filename):
     # print(f"\nDF após formatação: \n{df.head(5).to_string(index=False)}")
 
     result_df = pd.DataFrame(list(detected_types.items()), columns=['Coluna', 'Tipo'])
-    print(f"\n{result_df}\n")
+    # print(f"\n{result_df}\n")
     # print(df)
 
     return df, result_df, unique_values_dict
