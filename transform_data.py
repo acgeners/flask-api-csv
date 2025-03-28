@@ -11,7 +11,6 @@ import time
 
 #---------------------------CARREGAR E IDENTIFICAR PLANILHA---------------------------#
 def load_csv_auto(path, encoding='utf-8'):
-    import pandas as pd
     separadores_possiveis = [',', ';', '\t']
     melhor_df = None
     max_colunas = 0
