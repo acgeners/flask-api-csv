@@ -1272,51 +1272,51 @@ def main(ref_data_path, new_data_path, ref_filename, new_filename):
         # new_data = pd.read_csv(new_data_path, dtype=str).dropna(how='all')
         new_data = load_csv_auto(new_data_path)
 
-        print("📊 Analisando tipos de tabela...")
-        ref_df = classificar_df(ref_data)
-        new_df = classificar_df(new_data)
-        if ref_df == new_df:
-            print(
-                f"\n✅ Comparação entre tipos de tabela OK: \n→ Tabela {ref_path} = {ref_df} \n→ Tabela {new_path} = {new_df}\n")
+        # print("📊 Analisando tipos de tabela...")
+        # ref_df = classificar_df(ref_data)
+        # new_df = classificar_df(new_data)
+        # if ref_df == new_df:
+        #     print(
+        #         f"\n✅ Comparação entre tipos de tabela OK: \n→ Tabela {ref_path} = {ref_df} \n→ Tabela {new_path} = {new_df}\n")
 
-            # TODO ver se pode manter
-            print("Avaliando listas suspensas na tabela de referência")
-            ref_data, ref_dd_list = dd_list_columns(ref_data)
-            print(f"Lista de colunas drop down: \n{ref_dd_list}")
+        # TODO ver se pode manter
+        print("Avaliando listas suspensas na tabela de referência")
+        ref_data, ref_dd_list = dd_list_columns(ref_data)
+        print(f"Lista de colunas drop down: \n{ref_dd_list}")
 
-            print("\n📊 Analisando tipos de dados...")
-            # 🔹 Executa a função apenas uma vez e armazena os retornos
-            df_ref, ref_types, unique_values_dict_ref = analyze_table(ref_data, ref_path)
-            df_new, new_types, _ = analyze_table(new_data, new_path)
+        print("\n📊 Analisando tipos de dados...")
+        # 🔹 Executa a função apenas uma vez e armazena os retornos
+        df_ref, ref_types, unique_values_dict_ref = analyze_table(ref_data, ref_path)
+        df_new, new_types, _ = analyze_table(new_data, new_path)
 
-            print("\n📊 Realizando match das colunas...")
-            matched_columns = match_columns(df_ref, df_new, ref_types, new_types, ref_path, new_path)
+        print("\n📊 Realizando match das colunas...")
+        matched_columns = match_columns(df_ref, df_new, ref_types, new_types, ref_path, new_path)
 
-            print("\n📊 Transformando valores ($$) do DF...")
-            df_new = transform_value(df_new, matched_columns, unique_values_dict_ref, ref_dd_list, ref_types)
+        print("\n📊 Transformando valores ($$) do DF...")
+        df_new = transform_value(df_new, matched_columns, unique_values_dict_ref, ref_dd_list, ref_types)
 
-            print("\n📊 Validando dados...")
-            validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_dd_list)
+        print("\n📊 Validando dados...")
+        validated_data = validate_data(df_new, matched_columns, unique_values_dict_ref, ref_dd_list)
 
-            print("\n📊 Organiza DF final (add e del colunas, muda ordem, etc)...")
-            transformed_data = transform_data(df_ref, validated_data, matched_columns)
-            # TODO ver se precisa disso
-            transformed_data = transformed_data.astype(str)
-            # Substituir todas as ocorrências da string "NaN" por valores vazios (sem inplace=True)
-            transformed_data.replace("nan", "", inplace=True)
-            transformed_data.replace("None", "", inplace=True)
+        print("\n📊 Organiza DF final (add e del colunas, muda ordem, etc)...")
+        transformed_data = transform_data(df_ref, validated_data, matched_columns)
+        # TODO ver se precisa disso
+        transformed_data = transformed_data.astype(str)
+        # Substituir todas as ocorrências da string "NaN" por valores vazios (sem inplace=True)
+        transformed_data.replace("nan", "", inplace=True)
+        transformed_data.replace("None", "", inplace=True)
 
-            # Converte o DataFrame para JSON (uma lista de registros)
-            json_data = transformed_data.to_json(orient='records')
-            print("✅ Dados transformados preparados para API")
+        # Converte o DataFrame para JSON (uma lista de registros)
+        json_data = transformed_data.to_json(orient='records')
+        print("✅ Dados transformados preparados para API")
 
-            end_time = time.time()
+        end_time = time.time()
 
-            elapsed_time = end_time - start_time
-            print(f"⏱️ Tempo de execução: {elapsed_time:.2f} segundos")
-            return json_data
-        else:
-            print(f"Tabelas não correspondem.\nTabela {ref_data} = {ref_df}. Tabela {new_data} = {new_df}")
+        elapsed_time = end_time - start_time
+        print(f"⏱️ Tempo de execução: {elapsed_time:.2f} segundos")
+        return json_data
+    # else:
+    #     print(f"Tabelas não correspondem.\nTabela {ref_data} = {ref_df}. Tabela {new_data} = {new_df}")
 
     except Exception as e:
         return {"error": str(e)}
